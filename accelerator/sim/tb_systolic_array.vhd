@@ -9,11 +9,6 @@ end tb_systolic_array;
 architecture sim of tb_systolic_array is
 
     ------------------------------------------------------------------------
-    -- Systolic array size
-    ------------------------------------------------------------------------
-    constant NUM_PE : integer := 4;
-
-    ------------------------------------------------------------------------
     -- Integer types for testbench matrices
     ------------------------------------------------------------------------
     type input_array_t is array (0 to NUM_PE-1) of integer;
@@ -22,12 +17,12 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     -- DUT signals
     ------------------------------------------------------------------------
-    signal a_in       : byte_array_t(0 to NUM_PE-1) := (others => (others => '0'));
-    signal w_in       : byte_array_t(0 to NUM_PE-1) := (others => (others => '0'));
+    signal a_in       : byte_array_t := (others => (others => '0'));
+    signal w_in       : byte_array_t := (others => (others => '0'));
     signal clear_i    : std_logic := '0';
     signal clk_i      : std_logic := '0';
     signal rst_i      : std_logic := '0';
-    signal p_sums_out : out_array_t(0 to NUM_PE-1)(0 to NUM_PE-1);
+    signal p_sums_out : out_array_t;
 
     ------------------------------------------------------------------------
     -- Clock period
@@ -38,10 +33,10 @@ architecture sim of tb_systolic_array is
     -- Convert integer vector to 8-bit std_logic_vector array
     ------------------------------------------------------------------------
     function slv8(x : input_array_t) return byte_array_t is
-        variable res : byte_array_t(0 to NUM_PE-1) := (others => (others => '0'));
+        variable res : byte_array_t := (others => (others => '0'));
     begin
         for i in 0 to NUM_PE-1 loop
-            res(i) := std_logic_vector(to_signed(x(i), 8));
+            res(i) := std_logic_vector(to_signed(x(i), DATA_WIDTH));
         end loop;
 
         return res;

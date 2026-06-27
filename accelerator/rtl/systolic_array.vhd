@@ -4,34 +4,32 @@ use IEEE.NUMERIC_STD.ALL;
 use work.systolic_pkg.all;  
 
 entity systolic_array is
-    generic (
-        NUM_PE : integer := 4
-    );
     port (
-        a_in : in byte_array_t(0 to NUM_PE-1);
-        w_in : in byte_array_t(0 to NUM_PE-1);
+        a_in : in byte_array_t;
+        w_in : in byte_array_t;
         clear_i : in  std_logic;
         clk_i : in  std_logic;
         rst_i : in  std_logic;
-        p_sums_out : out  out_array_t(0 to NUM_PE-1)(0 to NUM_PE-1)
+        p_sums_out : out  out_array_t
     );
 end systolic_array;
 
 architecture Behavioral of systolic_array is
     component systolic_pe is
         port (
-            a_in : in  std_logic_vector (7 downto 0);
-            w_in : in  std_logic_vector (7 downto 0);
+            a_in : in  std_logic_vector (DATA_WIDTH-1 downto 0);
+            w_in : in  std_logic_vector (DATA_WIDTH-1 downto 0);
             clear_i : in  std_logic;
             clk_i : in  std_logic;
             rst_i : in  std_logic;
-            a_out : out  std_logic_vector (7 downto 0);
-            w_out : out  std_logic_vector (7 downto 0);
-            p_sum_out : out  std_logic_vector (31 downto 0)
+            a_out : out  std_logic_vector (DATA_WIDTH-1 downto 0);
+            w_out : out  std_logic_vector (DATA_WIDTH-1 downto 0);
+            p_sum_out : out  std_logic_vector (ACC_WIDTH-1 downto 0)
         );
     end component;
 
-    type grid_t is array (natural range <>) of byte_array_t;
+    type grid_row_t is array(natural range <>) of std_logic_vector(DATA_WIDTH-1 downto 0);
+    type grid_t is array (natural range <>) of grid_row_t;
     signal a_regs : grid_t(0 to NUM_PE-1)(0 to NUM_PE) := (others => (others => (others => '0')));
     signal w_regs : grid_t(0 to NUM_PE)(0 to NUM_PE-1) := (others => (others => (others => '0')));
 

@@ -1,32 +1,36 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use std.env.all;
+
+library work;
+use work.systolic_pkg.all;
 
 entity tb_systolic_pe is
 end tb_systolic_pe;
 
 architecture sim of tb_systolic_pe is
 
-    signal a_in      : std_logic_vector(7 downto 0)  := (others => '0');
-    signal w_in      : std_logic_vector(7 downto 0)  := (others => '0');
+    signal a_in      : std_logic_vector(DATA_WIDTH-1 downto 0)  := (others => '0');
+    signal w_in      : std_logic_vector(DATA_WIDTH-1 downto 0)  := (others => '0');
     signal clear_i   : std_logic := '0';
     signal clk_i     : std_logic := '0';
     signal rst_i     : std_logic := '0';
 
-    signal a_out     : std_logic_vector(7 downto 0);
-    signal w_out     : std_logic_vector(7 downto 0);
-    signal p_sum_out : std_logic_vector(31 downto 0);
+    signal a_out     : std_logic_vector(DATA_WIDTH-1 downto 0);
+    signal w_out     : std_logic_vector(DATA_WIDTH-1 downto 0);
+    signal p_sum_out : std_logic_vector(ACC_WIDTH-1 downto 0);
 
     constant CLK_PERIOD : time := 10 ns;
 
-    function slv8(x : integer) return std_logic_vector is
+    function slv_data(x : integer) return std_logic_vector is
     begin
-        return std_logic_vector(to_signed(x, 8));
+        return std_logic_vector(to_signed(x, DATA_WIDTH));
     end function;
 
-    function slv32(x : integer) return std_logic_vector is
+    function slv_acc(x : integer) return std_logic_vector is
     begin
-        return std_logic_vector(to_signed(x, 32));
+        return std_logic_vector(to_signed(x, ACC_WIDTH));
     end function;
 
     procedure check_outputs(
@@ -36,30 +40,30 @@ architecture sim of tb_systolic_pe is
         constant test_name    : in string
     ) is
     begin
-        assert a_out = slv8(expected_a)
+        assert a_out = slv_data(expected_a)
             report "FAIL: " & test_name & " a_out wrong"
             severity failure;
 
-        assert w_out = slv8(expected_w)
+        assert w_out = slv_data(expected_w)
             report "FAIL: " & test_name & " w_out wrong"
             severity failure;
 
-        assert p_sum_out = slv32(expected_sum)
+        assert p_sum_out = slv_acc(expected_sum)
             report "FAIL: " & test_name & " p_sum_out wrong"
             severity failure;
     end procedure;
 
     procedure apply_and_check(
-        signal a_sig          : out std_logic_vector(7 downto 0);
-        signal w_sig          : out std_logic_vector(7 downto 0);
+        signal a_sig          : out std_logic_vector(DATA_WIDTH-1 downto 0);
+        signal w_sig          : out std_logic_vector(DATA_WIDTH-1 downto 0);
         constant a_value      : in integer;
         constant w_value      : in integer;
         constant expected_sum : in integer;
         constant test_name    : in string
     ) is
     begin
-        a_sig <= slv8(a_value);
-        w_sig <= slv8(w_value);
+        a_sig <= slv_data(a_value);
+        w_sig <= slv_data(w_value);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -111,8 +115,8 @@ begin
         clear_i <= '0';
 
         -- Intentionally non-zero values to prove reset dominates the datapath.
-        a_in <= slv8(55);
-        w_in <= slv8(-12);
+        a_in <= slv_data(55);
+        w_in <= slv_data(-12);
 
         wait for 2 ns;
 
@@ -129,8 +133,8 @@ begin
         -- otherwise the PE would immediately accumulate the old test values.
         --------------------------------------------------------------------
         rst_i <= '0';
-        a_in  <= slv8(0);
-        w_in  <= slv8(0);
+        a_in  <= slv_data(0);
+        w_in  <= slv_data(0);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -169,8 +173,8 @@ begin
         clear_i <= '1';
 
         -- Non-zero values to prove clear_i dominates computation.
-        a_in <= slv8(10);
-        w_in <= slv8(10);
+        a_in <= slv_data(10);
+        w_in <= slv_data(10);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -178,8 +182,8 @@ begin
         check_outputs(0, 0, 0, "synchronous clear");
 
         clear_i <= '0';
-        a_in    <= slv8(0);
-        w_in    <= slv8(0);
+        a_in    <= slv_data(0);
+        w_in    <= slv_data(0);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -199,8 +203,8 @@ begin
         -- Clear before max negative tests
         --------------------------------------------------------------------
         clear_i <= '1';
-        a_in    <= slv8(0);
-        w_in    <= slv8(0);
+        a_in    <= slv_data(0);
+        w_in    <= slv_data(0);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -248,8 +252,8 @@ begin
         check_outputs(0, 0, 0, "asynchronous reset after computation");
 
         rst_i <= '0';
-        a_in  <= slv8(0);
-        w_in  <= slv8(0);
+        a_in  <= slv_data(0);
+        w_in  <= slv_data(0);
 
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -262,7 +266,7 @@ begin
         assert false
             report "TEST PASSED: systolic_pe behaves correctly"
             severity note;
-
+            stop;
         wait;
 
     end process;
