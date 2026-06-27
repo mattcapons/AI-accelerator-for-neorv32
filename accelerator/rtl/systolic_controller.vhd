@@ -15,7 +15,7 @@ entity systolic_controller is
         start_i : in  std_logic;
         a_feed_o : out  byte_array_t;
         w_feed_o : out  byte_array_t;
-        pop_o : out  std_logic_vector(NUM_PE-1 downto 0);
+        pop_o : out  std_logic_vector(0 to NUM_PE-1);
         clear_o : out  std_logic;
         done_o : out  std_logic
     );

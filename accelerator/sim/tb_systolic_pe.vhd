@@ -266,7 +266,7 @@ begin
         assert false
             report "TEST PASSED: systolic_pe behaves correctly"
             severity note;
-            stop;
+        stop;
         wait;
 
     end process;
