@@ -1,0 +1,28 @@
+
+# GHDL
+work-obj*.cf
+*.ghw
+*.vcd
+
+# RISC-V / C build outputs
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Gowin / FPGA generated outputs
+*.fs
+*.bit
+*.json
+*.rpt
+*.db
+*.bak
+
+# OS/editor
+.DS_Store
