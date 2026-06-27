@@ -1,6 +1,9 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use std.env.all;
+
+library work;
 use work.systolic_pkg.all;
 
 entity tb_systolic_array is
@@ -110,8 +113,8 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     procedure clear_array(
         signal clear_sig : out std_logic;
-        signal a_sig     : out byte_array_t(0 to NUM_PE-1);
-        signal w_sig     : out byte_array_t(0 to NUM_PE-1)
+        signal a_sig     : out byte_array_t;
+        signal w_sig     : out byte_array_t
     ) is
     begin
         clear_sig <= '1';
@@ -130,8 +133,8 @@ architecture sim of tb_systolic_array is
     -- Apply one cycle of input values
     ------------------------------------------------------------------------
     procedure apply_inputs(
-        signal a_sig       : out byte_array_t(0 to NUM_PE-1);
-        signal w_sig       : out byte_array_t(0 to NUM_PE-1);
+        signal a_sig       : out byte_array_t;
+        signal w_sig       : out byte_array_t;
         constant a_values  : in input_array_t;
         constant w_values  : in input_array_t
     ) is
@@ -144,8 +147,8 @@ architecture sim of tb_systolic_array is
     -- Feed one full matrix multiplication into the systolic array
     ------------------------------------------------------------------------
     procedure full_compute(
-        signal a_sig       : out byte_array_t(0 to NUM_PE-1);
-        signal w_sig       : out byte_array_t(0 to NUM_PE-1);
+        signal a_sig       : out byte_array_t;
+        signal w_sig       : out byte_array_t;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t
     ) is
@@ -185,7 +188,7 @@ architecture sim of tb_systolic_array is
         for i in 0 to NUM_PE-1 loop
             for j in 0 to NUM_PE-1 loop
 
-                actual_int := to_integer(signed(p_sums_out(i)(j)));
+                actual_int := to_integer(signed(p_sums_out(i, j)));
 
                 assert actual_int = expected_sums(i, j)
                     report "Mismatch at position (" &
@@ -204,8 +207,8 @@ architecture sim of tb_systolic_array is
     -- Compute expected result, run DUT computation, then check
     ------------------------------------------------------------------------
     procedure apply_and_check(
-        signal a_sig       : out byte_array_t(0 to NUM_PE-1);
-        signal w_sig       : out byte_array_t(0 to NUM_PE-1);
+        signal a_sig       : out byte_array_t;
+        signal w_sig       : out byte_array_t;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t;
         constant test_name : in string
@@ -225,9 +228,6 @@ begin
     -- DUT instantiation
     ------------------------------------------------------------------------
     dut : entity work.systolic_array
-        generic map (
-            NUM_PE => NUM_PE
-        )
         port map (
             a_in       => a_in,
             w_in       => w_in,
@@ -337,8 +337,8 @@ begin
         --------------------------------------------------------------------
         assert false
             report "TEST PASSED: systolic_array behaves correctly"
-            severity failure;
-
+            severity note;
+            stop;
     end process;
 
 end sim;

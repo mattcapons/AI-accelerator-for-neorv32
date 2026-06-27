@@ -3,10 +3,14 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 package systolic_pkg is
+
     constant NUM_PE : positive := 4;
+    
     constant DATA_WIDTH : positive := 8;
     constant ACC_WIDTH : positive := 32;
+
     type byte_array_t is array (0 to NUM_PE-1) of std_logic_vector (DATA_WIDTH-1 downto 0);
-    type row_t is array (0 to NUM_PE-1) of std_logic_vector (ACC_WIDTH-1 downto 0);
-    type out_array_t is array (0 to NUM_PE-1) of row_t;
+
+    type out_array_t is array (0 to NUM_PE-1, 0 to NUM_PE-1) of std_logic_vector (ACC_WIDTH-1 downto 0);
+    
 end package systolic_pkg;
