@@ -1,0 +1,4 @@
+[libraries]
+accelerator.files = [
+  "accelerator/rtl/*.vhd",
+]

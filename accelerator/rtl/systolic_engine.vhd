@@ -1,8 +1,6 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
-
-library work;
 use work.systolic_pkg.all;
 
 entity systolic_engine is
@@ -13,7 +11,7 @@ entity systolic_engine is
         clk_i : in  std_logic;
         rst_i : in  std_logic;
         start_i : in  std_logic;
-        pop_o : out  std_logic_vector(NUM_PE-1 downto 0);
+        pop_o : out  std_logic_vector(0 to NUM_PE-1);
         done_o : out  std_logic;
         p_sums_out : out out_array_t
     );

@@ -1,0 +1,8 @@
+[libraries]
+accelerator.files = [
+  "rtl/*.vhd",
+  "sim/tb_buffer_unit.vhd",
+  "sim/tb_systolic_pe.vhd",
+  "sim/tb_systolic_controller.vhd",
+  "sim/tb_systolic_array.vhd",
+]

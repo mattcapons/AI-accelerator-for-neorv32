@@ -2,8 +2,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use std.env.all;
-
-library work;
 use work.systolic_pkg.all;
 
 entity tb_systolic_array is
@@ -35,11 +33,11 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     -- Convert integer vector to 8-bit std_logic_vector array
     ------------------------------------------------------------------------
-    function slv8(x : input_array_t) return byte_array_t is
+    function f_sign_d(x : input_array_t) return byte_array_t is
         variable res : byte_array_t := (others => (others => '0'));
     begin
         for i in 0 to NUM_PE-1 loop
-            res(i) := std_logic_vector(to_signed(x(i), DATA_WIDTH));
+            res(i) := to_signed(x(i), DATA_WIDTH);
         end loop;
 
         return res;
@@ -139,8 +137,8 @@ architecture sim of tb_systolic_array is
         constant w_values  : in input_array_t
     ) is
     begin
-        a_sig <= slv8(a_values);
-        w_sig <= slv8(w_values);
+        a_sig <= f_sign_d(a_values);
+        w_sig <= f_sign_d(w_values);
     end procedure;
 
     ------------------------------------------------------------------------

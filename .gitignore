@@ -1,6 +1,7 @@
 
 # GHDL
 work-obj*.cf
+accelerator/build/
 *.ghw
 *.vcd
 

@@ -3,7 +3,6 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use std.env.all;
 
-library work;
 use work.systolic_pkg.all;
 
 entity tb_systolic_controller is
@@ -30,11 +29,11 @@ architecture Behavioral of tb_systolic_controller is
     constant CLK_PERIOD : time := 10 ns;
 
     ----------------------------------------------------------------
-    -- Helper function: convert integer to DATA_WIDTH std_logic_vector
+    -- Helper function: convert integer to DATA_WIDTH signed
     ----------------------------------------------------------------
-    function slv_data(x : integer) return std_logic_vector is
+    function signed_data(x : integer) return signed is
     begin
-        return std_logic_vector(to_signed(x, DATA_WIDTH));
+        return to_signed(x, DATA_WIDTH);
     end function;
 
     ----------------------------------------------------------------
@@ -79,11 +78,11 @@ architecture Behavioral of tb_systolic_controller is
                     report "FAIL: " & test_name & " w_feed(" & integer'image(i) & ") wrong"
                     severity failure;
             else
-                assert a_feed(i) = std_logic_vector(to_signed(0, DATA_WIDTH))
+                assert a_feed(i) = to_signed(0, DATA_WIDTH)
                     report "FAIL: " & test_name & " a_feed(" & integer'image(i) & ") should be zero"
                     severity failure;
 
-                assert w_feed(i) = std_logic_vector(to_signed(0, DATA_WIDTH))
+                assert w_feed(i) = to_signed(0, DATA_WIDTH)
                     report "FAIL: " & test_name & " w_feed(" & integer'image(i) & ") should be zero"
                     severity failure;
             end if;
@@ -133,8 +132,8 @@ begin
         -- Initialize fake buffer outputs
         ----------------------------------------------------------------
         for i in 0 to NUM_PE-1 loop
-            a_buff(i) <= slv_data(i + 1);       -- 1, 2, 3, 4
-            w_buff(i) <= slv_data(10 + i + 1);  -- 11, 12, 13, 14
+            a_buff(i) <= signed_data(i + 1);       -- 1, 2, 3, 4
+            w_buff(i) <= signed_data(10 + i + 1);  -- 11, 12, 13, 14
         end loop;
 
         ----------------------------------------------------------------
