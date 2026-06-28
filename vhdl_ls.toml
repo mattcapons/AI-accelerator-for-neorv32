@@ -1,4 +1,4 @@
 [libraries]
-accelerator.files = [
+work.files = [
   "accelerator/rtl/*.vhd",
 ]

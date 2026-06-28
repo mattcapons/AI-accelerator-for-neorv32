@@ -11,5 +11,7 @@ package systolic_pkg is
 
     type byte_array_t is array (0 to NUM_PE-1) of signed (DATA_WIDTH-1 downto 0);
     type out_array_t is array (0 to NUM_PE-1, 0 to NUM_PE-1) of signed (ACC_WIDTH-1 downto 0);
+
+    type data_type_t is (A, W);
     
 end package systolic_pkg;

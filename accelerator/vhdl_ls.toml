@@ -1,5 +1,5 @@
 [libraries]
-accelerator.files = [
+work.files = [
   "rtl/*.vhd",
   "sim/tb_buffer_unit.vhd",
   "sim/tb_systolic_pe.vhd",
