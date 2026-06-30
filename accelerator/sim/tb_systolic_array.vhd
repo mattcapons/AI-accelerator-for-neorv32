@@ -18,11 +18,12 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     -- DUT signals
     ------------------------------------------------------------------------
-    signal a_in       : byte_array_t := (others => (others => '0'));
-    signal w_in       : byte_array_t := (others => (others => '0'));
+    signal a_in       : data_array_t := (others => (others => '0'));
+    signal w_in       : data_array_t := (others => (others => '0'));
     signal clear_i    : std_logic := '0';
     signal clk_i      : std_logic := '0';
     signal rst_i      : std_logic := '0';
+    signal input_en_i : std_logic := '0';
     signal p_sums_out : out_array_t;
 
     ------------------------------------------------------------------------
@@ -33,8 +34,8 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     -- Convert integer vector to 8-bit std_logic_vector array
     ------------------------------------------------------------------------
-    function f_sign_d(x : input_array_t) return byte_array_t is
-        variable res : byte_array_t := (others => (others => '0'));
+    function f_sign_d(x : input_array_t) return data_array_t is
+        variable res : data_array_t := (others => (others => '0'));
     begin
         for i in 0 to NUM_PE-1 loop
             res(i) := to_signed(x(i), DATA_WIDTH);
@@ -111,8 +112,8 @@ architecture sim of tb_systolic_array is
     ------------------------------------------------------------------------
     procedure clear_array(
         signal clear_sig : out std_logic;
-        signal a_sig     : out byte_array_t;
-        signal w_sig     : out byte_array_t
+        signal a_sig     : out data_array_t;
+        signal w_sig     : out data_array_t
     ) is
     begin
         clear_sig <= '1';
@@ -131,8 +132,8 @@ architecture sim of tb_systolic_array is
     -- Apply one cycle of input values
     ------------------------------------------------------------------------
     procedure apply_inputs(
-        signal a_sig       : out byte_array_t;
-        signal w_sig       : out byte_array_t;
+        signal a_sig       : out data_array_t;
+        signal w_sig       : out data_array_t;
         constant a_values  : in input_array_t;
         constant w_values  : in input_array_t
     ) is
@@ -145,8 +146,8 @@ architecture sim of tb_systolic_array is
     -- Feed one full matrix multiplication into the systolic array
     ------------------------------------------------------------------------
     procedure full_compute(
-        signal a_sig       : out byte_array_t;
-        signal w_sig       : out byte_array_t;
+        signal a_sig       : out data_array_t;
+        signal w_sig       : out data_array_t;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t
     ) is
@@ -205,8 +206,8 @@ architecture sim of tb_systolic_array is
     -- Compute expected result, run DUT computation, then check
     ------------------------------------------------------------------------
     procedure apply_and_check(
-        signal a_sig       : out byte_array_t;
-        signal w_sig       : out byte_array_t;
+        signal a_sig       : out data_array_t;
+        signal w_sig       : out data_array_t;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t;
         constant test_name : in string
@@ -232,6 +233,7 @@ begin
             clear_i    => clear_i,
             clk_i      => clk_i,
             rst_i      => rst_i,
+            input_en_i => input_en_i,
             p_sums_out => p_sums_out
         );
 
@@ -301,6 +303,7 @@ begin
         --------------------------------------------------------------------
         rst_i   <= '1';
         clear_i <= '0';
+        input_en_i <= '0';
         a_in    <= (others => (others => '0'));
         w_in    <= (others => (others => '0'));
 
@@ -317,6 +320,8 @@ begin
         --------------------------------------------------------------------
         -- Tests
         --------------------------------------------------------------------
+        input_en_i <= '1';
+
         clear_array(clear_i, a_in, w_in);
         apply_and_check(a_in, w_in, A_TEST, I_MATRIX, "A times identity");
         clear_array(clear_i, a_in, w_in);

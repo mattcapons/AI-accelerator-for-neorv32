@@ -1,6 +1,12 @@
 [libraries]
-work.files = [
-  "rtl/*.vhd",
+defaultlib.files = [
+  "rtl/systolic_pkg.vhd",
+  "rtl/systolic_pe.vhd",
+  "rtl/systolic_array.vhd",
+  "rtl/systolic_controller.vhd",
+  "rtl/buffer_unit.vhd",
+  "rtl/queue_buffer.vhd",
+  "rtl/systolic_engine.vhd",
   "sim/tb_buffer_unit.vhd",
   "sim/tb_systolic_pe.vhd",
   "sim/tb_systolic_controller.vhd",

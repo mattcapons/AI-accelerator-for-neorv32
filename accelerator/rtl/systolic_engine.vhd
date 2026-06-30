@@ -3,50 +3,72 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use work.systolic_pkg.all;
 
+
+
 entity systolic_engine is
     port (
-        a_buff_i : in  byte_array_t;
-        w_buff_i : in  byte_array_t;
-        clear_result_i : in  std_logic;
+        a_mem_i : in std_logic_vector(NUM_PE*DATA_WIDTH-1 downto 0);
+        w_mem_i : in  std_logic_vector(NUM_PE*DATA_WIDTH-1 downto 0);
         clk_i : in  std_logic;
         rst_i : in  std_logic;
         start_i : in  std_logic;
-        pop_o : out  std_logic_vector(0 to NUM_PE-1);
+        a_addr_o : out integer;
+        w_addr_o : out integer;
+        rdy_o : out std_logic;
         done_o : out  std_logic;
-        p_sums_out : out out_array_t
+        p_sum_out : out signed(ACC_WIDTH-1 downto 0);
+        p_sum_valid_o   :out std_logic
     );
 end systolic_engine;
 
 architecture Behavioral of systolic_engine is
 
-    signal a_feed : byte_array_t := (others => (others => '0'));
-    signal w_feed : byte_array_t := (others => (others => '0'));
-    signal clear_internal : std_logic := '0';
+    signal a_int : data_array_t := (others => (others => '0'));
+    signal w_int : data_array_t := (others => (others => '0'));
+    signal p_sums_int : out_array_t := (others => (others => (others => '0')));
+
+    signal addr_int : integer range 0 to NUM_PE-1 := 0;
+
+    signal clear_int : std_logic;
+    signal feed_int : std_logic;
 
 begin
+    
+    gen_unpack : for i in 0 to NUM_PE-1 generate
+        constant hi : integer := (NUM_PE - i) * DATA_WIDTH - 1;
+        constant lo : integer := hi - DATA_WIDTH + 1;
+    begin
+        a_int(i) <= signed(a_mem_i(hi downto lo));
+        w_int(i) <= signed(w_mem_i(hi downto lo));
+    end generate gen_unpack;
 
     gen_array : entity work.systolic_array
         port map (
-            a_in       => a_feed,
-            w_in       => w_feed,
-            clear_i    => clear_internal,
+            a_in       => a_int,
+            w_in       => w_int,
+            clear_i    => clear_int,
             clk_i      => clk_i,
             rst_i      => rst_i,
-            p_sums_out => p_sums_out
+            input_en_i => feed_int,
+            p_sums_out => p_sums_int
         );
 
     gen_controller : entity work.systolic_controller
         port map (
-            a_buff_i => a_buff_i,
-            w_buff_i => w_buff_i,
-            clear_result_i => clear_result_i,
-            clk_i => clk_i,
-            rst_i => rst_i,
-            start_i => start_i,
-            a_feed_o => a_feed,
-            w_feed_o => w_feed,
-            pop_o => pop_o,
-            clear_o => clear_internal,
-            done_o => done_o
+            p_sums_i        => p_sums_int,
+            clk_i           => clk_i,
+            rst_i           => rst_i,
+            start_i         => start_i,
+            p_sum_o         => p_sum_out,
+            rdy_o           => rdy_o,
+            addr_o          => addr_int,
+            clear_o         => clear_int,
+            done_o          => done_o,
+            feed_valid_o    => feed_int,
+            p_sum_valid_o   => p_sum_valid_o
         );
+
+    a_addr_o <= addr_int;
+    w_addr_o <= addr_int;
+
 end architecture Behavioral;
