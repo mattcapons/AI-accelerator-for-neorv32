@@ -32,13 +32,26 @@ architecture sim of tb_systolic_array is
     constant CLK_PERIOD : time := 10 ns;
 
     ------------------------------------------------------------------------
-    -- Convert integer vector to 8-bit std_logic_vector array
+    -- Convert integer matrix column to 8-bit std_logic_vector array
     ------------------------------------------------------------------------
-    function f_sign_d(x : input_array_t) return data_array_t is
+    function mat_col_int_to_sign(x : matrix_t; col : integer) return data_array_t is
         variable res : data_array_t := (others => (others => '0'));
     begin
         for i in 0 to NUM_PE-1 loop
-            res(i) := to_signed(x(i), DATA_WIDTH);
+            res(i) := to_signed(x(i, col), DATA_WIDTH);
+        end loop;
+
+        return res;
+    end function;
+
+    ------------------------------------------------------------------------
+    -- Convert integer matrix row to 8-bit std_logic_vector array
+    ------------------------------------------------------------------------
+    function mat_row_int_to_sign(x : matrix_t; row : integer) return data_array_t is
+        variable res : data_array_t := (others => (others => '0'));
+    begin
+        for i in 0 to NUM_PE-1 loop
+            res(i) := to_signed(x(row, i), DATA_WIDTH);
         end loop;
 
         return res;
@@ -53,7 +66,6 @@ architecture sim of tb_systolic_array is
         for i in 0 to NUM_PE-1 loop
             for j in 0 to NUM_PE-1 loop
                 res(i, j) := 0;
-
                 for k in 0 to NUM_PE-1 loop
                     res(i, j) := res(i, j) + a(i, k) * b(k, j);
                 end loop;
@@ -64,109 +76,50 @@ architecture sim of tb_systolic_array is
     end function;
 
     ------------------------------------------------------------------------
-    -- Get skewed A input vector for a given cycle
-    --
-    -- a_in(row) receives A(row, cycle - row)
-    ------------------------------------------------------------------------
-    function get_a_cycle(a : matrix_t; cycle : integer) return input_array_t is
-        variable res : input_array_t := (others => 0);
-        variable col : integer;
-    begin
-        for row in 0 to NUM_PE-1 loop
-            col := cycle - row;
-
-            if col >= 0 and col < NUM_PE then
-                res(row) := a(row, col);
-            else
-                res(row) := 0;
-            end if;
-        end loop;
-
-        return res;
-    end function;
-
-    ------------------------------------------------------------------------
-    -- Get skewed W input vector for a given cycle
-    --
-    -- w_in(col) receives W(cycle - col, col)
-    ------------------------------------------------------------------------
-    function get_w_cycle(w : matrix_t; cycle : integer) return input_array_t is
-        variable res : input_array_t := (others => 0);
-        variable row : integer;
-    begin
-        for col in 0 to NUM_PE-1 loop
-            row := cycle - col;
-
-            if row >= 0 and row < NUM_PE then
-                res(col) := w(row, col);
-            else
-                res(col) := 0;
-            end if;
-        end loop;
-
-        return res;
-    end function;
-
-    ------------------------------------------------------------------------
-    -- Clear PE accumulators
+    -- Clear the DUT input arrays
     ------------------------------------------------------------------------
     procedure clear_array(
-        signal clear_sig : out std_logic;
-        signal a_sig     : out data_array_t;
-        signal w_sig     : out data_array_t
+        signal clear_sig : inout std_logic;
+        signal en_sig    : inout std_logic;
+        signal a_sig     : inout data_array_t;
+        signal w_sig     : inout data_array_t
     ) is
     begin
+        en_sig <= '0';
+        a_sig <= (others => (others => '0'));
+        w_sig <= (others => (others => '0'));
         clear_sig <= '1';
-        a_sig     <= (others => (others => '0'));
-        w_sig     <= (others => (others => '0'));
-
         wait until rising_edge(clk_i);
-        wait for 1 ns;
-
+        wait for 1 ns;  
         clear_sig <= '0';
-
         wait until rising_edge(clk_i);
         wait for 1 ns;
-    end procedure;
-    ------------------------------------------------------------------------
-    -- Apply one cycle of input values
-    ------------------------------------------------------------------------
-    procedure apply_inputs(
-        signal a_sig       : out data_array_t;
-        signal w_sig       : out data_array_t;
-        constant a_values  : in input_array_t;
-        constant w_values  : in input_array_t
-    ) is
-    begin
-        a_sig <= f_sign_d(a_values);
-        w_sig <= f_sign_d(w_values);
     end procedure;
 
     ------------------------------------------------------------------------
     -- Feed one full matrix multiplication into the systolic array
     ------------------------------------------------------------------------
     procedure full_compute(
-        signal a_sig       : out data_array_t;
-        signal w_sig       : out data_array_t;
+        signal a_sig     : inout data_array_t;
+        signal w_sig     : inout data_array_t;
+        signal en_sig    : inout std_logic;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t
     ) is
     begin
 
-        for cycle in 0 to (2 * NUM_PE - 2) loop
-            apply_inputs(
-                a_sig,
-                w_sig,
-                get_a_cycle(a_matrix, cycle),
-                get_w_cycle(w_matrix, cycle)
-            );
+        for cycle in 0 to NUM_PE-1 loop
+            a_sig <= mat_col_int_to_sign(a_matrix, cycle);
+            w_sig <= mat_row_int_to_sign(w_matrix, cycle);
+            en_sig <= '1';
 
             wait until rising_edge(clk_i);
             wait for 1 ns;
         end loop;
-
-        -- Stop injecting new data
-        apply_inputs(a_sig, w_sig, (others => 0), (others => 0));
+        
+        en_sig <= '0';
+        a_sig <= (others => (others => '0'));
+        w_sig <= (others => (others => '0'));
 
         -- Wait for the final values to propagate through the array
         for k in 0 to 2 * NUM_PE loop
@@ -206,8 +159,9 @@ architecture sim of tb_systolic_array is
     -- Compute expected result, run DUT computation, then check
     ------------------------------------------------------------------------
     procedure apply_and_check(
-        signal a_sig       : out data_array_t;
-        signal w_sig       : out data_array_t;
+        signal a_sig       : inout data_array_t;
+        signal w_sig       : inout data_array_t;
+        signal en_sig      : inout std_logic;
         constant a_matrix : in matrix_t;
         constant w_matrix : in matrix_t;
         constant test_name : in string
@@ -216,7 +170,7 @@ architecture sim of tb_systolic_array is
     begin
         expected_sums := matrix_mult(a_matrix, w_matrix);
 
-        full_compute(a_sig, w_sig, a_matrix, w_matrix);
+        full_compute(a_sig, w_sig, en_sig, a_matrix, w_matrix);
 
         check_outputs(expected_sums, test_name);
     end procedure;
@@ -320,20 +274,20 @@ begin
         --------------------------------------------------------------------
         -- Tests
         --------------------------------------------------------------------
-        input_en_i <= '1';
 
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, A_TEST, I_MATRIX, "A times identity");
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, I_MATRIX, W_TEST, "identity times W");
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, A_TEST, ZERO_MATRIX, "A times zero");
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, ZERO_MATRIX, W_TEST, "zero times W");
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, A_TEST, W_TEST, "positive non-trivial multiplication");
-        clear_array(clear_i, a_in, w_in);
-        apply_and_check(a_in, w_in, A_SIGNED, W_SIGNED, "signed multiplication");
+
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, A_TEST, I_MATRIX, "A times identity");
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, I_MATRIX, W_TEST, "identity times W");
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, A_TEST, ZERO_MATRIX, "A times zero");
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, ZERO_MATRIX, W_TEST, "zero times W");
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, A_TEST, W_TEST, "positive non-trivial multiplication");
+        clear_array(clear_i, input_en_i, a_in, w_in);
+        apply_and_check(a_in, w_in, input_en_i, A_SIGNED, W_SIGNED, "signed multiplication");
 
         --------------------------------------------------------------------
         -- End simulation

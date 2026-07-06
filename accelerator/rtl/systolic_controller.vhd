@@ -11,7 +11,7 @@ entity systolic_controller is
         start_i         : in std_logic;
         p_sum_o         : out signed(ACC_WIDTH-1 downto 0);
         rdy_o           : out std_logic;
-        addr_o          : out integer range 0 to NUM_PE-1;
+        feed_idx_o          : out integer range 0 to NUM_PE-1;
         clear_o         : out std_logic;
         done_o          : out std_logic;
         feed_valid_o    : out std_logic;
@@ -21,7 +21,7 @@ end systolic_controller;
 
 architecture Behavioral of systolic_controller is
 
-    type state_t is (IDLE, FEED, OUTPUT, DONE);
+    type state_t is (IDLE, FEED, DRAIN, OUTPUT, DONE);
     signal state : state_t := IDLE;
 
     signal cycle_count : integer range 0 to NUM_PE := 0;
@@ -50,10 +50,13 @@ begin
 
                 when FEED =>
                     if cycle_count = NUM_PE then
-                        state <= OUTPUT;
+                        state <= DRAIN;
                     else
                         cycle_count <= cycle_count + 1;
                     end if;
+
+                when DRAIN =>
+                    state <= OUTPUT;
 
                 when OUTPUT =>
                     if col_count = NUM_PE-1 then
@@ -79,7 +82,7 @@ begin
     fsm_comb : process(all)
     begin
         rdy_o <= '0';
-        addr_o <= 0;
+        feed_idx_o <= 0;
         clear_o <= '0';
         done_o <= '0';
         feed_valid_o <= '0';
@@ -99,10 +102,13 @@ begin
                 end if;
 
                 if cycle_count < NUM_PE then
-                    addr_o <= cycle_count;
+                    feed_idx_o <= cycle_count;
                 else
-                    addr_o <= NUM_PE-1;
+                    feed_idx_o <= 0;
                 end if;
+
+            when DRAIN =>
+                null;
 
             when OUTPUT =>
                 p_sum_o <= p_sums_i(row_count, col_count);

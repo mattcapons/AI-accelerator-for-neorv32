@@ -10,18 +10,38 @@ entity systolic_array is
         clear_i    : in  std_logic;
         clk_i      : in  std_logic;
         rst_i      : in  std_logic;
-        input_en_i : in std_logic;
+        input_en_i : in  std_logic;
         p_sums_out : out out_array_t
     );
 end entity systolic_array;
 
 architecture Behavioral of systolic_array is
 
-    type stagger_block_t is array(0 to NUM_PE-1) of data_array_t;
-    
+    --------------------------------------------------------------------
+    -- Stagger register block
+    --
+    -- stagger_regs_a(j)(i):
+    --   delay-chain element j for input lane i.
+    --
+    -- For i = 0:
+    --   stagger_regs_a(0)(0)
+    --
+    -- For i = 1:
+    --   stagger_regs_a(1)(1) -> stagger_regs_a(0)(1)
+    --
+    -- For i = 2:
+    --   stagger_regs_a(2)(2) -> stagger_regs_a(1)(2) -> stagger_regs_a(0)(2)
+    --
+    -- Same structure for W.
+    --------------------------------------------------------------------
+    type stagger_block_t is array (0 to NUM_PE-1) of data_array_t;
+
     signal stagger_regs_a : stagger_block_t := (others => (others => (others => '0')));
     signal stagger_regs_w : stagger_block_t := (others => (others => (others => '0')));
 
+    --------------------------------------------------------------------
+    -- PE interconnect grids
+    --------------------------------------------------------------------
     type a_grid_t is array (0 to NUM_PE-1, 0 to NUM_PE) of signed(DATA_WIDTH-1 downto 0);
     type w_grid_t is array (0 to NUM_PE, 0 to NUM_PE-1) of signed(DATA_WIDTH-1 downto 0);
 
@@ -30,38 +50,74 @@ architecture Behavioral of systolic_array is
 
 begin
 
+    --------------------------------------------------------------------
+    -- Boundary connections
+    --
+    -- The first stage of each delay chain feeds the array boundary.
+    --------------------------------------------------------------------
     gen_a_boundary : for r in 0 to NUM_PE-1 generate
         a_regs(r, 0) <= stagger_regs_a(0)(r);
-        stagger_regs_a(r)(r) <= a_in(r) when input_en_i = '1' else (others => '0');
-    end generate;
+    end generate gen_a_boundary;
 
     gen_w_boundary : for c in 0 to NUM_PE-1 generate
         w_regs(0, c) <= stagger_regs_w(0)(c);
-        stagger_regs_w(c)(c) <= w_in(c) when input_en_i = '1' else (others => '0');
-    end generate;
+    end generate gen_w_boundary;
 
-    connect_proc : process(clk_i, rst_i)
+    --------------------------------------------------------------------
+    -- Stagger logic
+    --
+    -- Fully synchronous.
+    -- No other assignment drives stagger_regs_a/stagger_regs_w.
+    --------------------------------------------------------------------
+    stagger_proc : process(clk_i, rst_i)
     begin
 
         if rst_i = '1' then
-            for i in 0 to NUM_PE-1 loop
-                for j in i downto 1 loop
-                    stagger_regs_a(j-1)(i) <= (others => '0');
-                    stagger_regs_w(j-1)(i) <= (others => '0');
-                end loop;
-            end loop;
+
+            stagger_regs_a <= (others => (others => (others => '0')));
+            stagger_regs_w <= (others => (others => (others => '0')));
 
         elsif rising_edge(clk_i) then
+
             for i in 0 to NUM_PE-1 loop
-                for j in i downto 1 loop
-                    stagger_regs_a(j-1)(i) <= stagger_regs_a(j)(i);
-                    stagger_regs_w(j-1)(i) <= stagger_regs_w(j)(i);
+
+                --------------------------------------------------------
+                -- Shift delay chain for lane i.
+                --
+                -- Example i = 3:
+                --   stage 2 -> stage 1
+                --   stage 1 -> stage 0
+                --
+                -- The new input is inserted into stage 3 below.
+                --------------------------------------------------------
+                for j in 0 to i-1 loop
+                    stagger_regs_a(j)(i) <= stagger_regs_a(j+1)(i);
+                    stagger_regs_w(j)(i) <= stagger_regs_w(j+1)(i);
                 end loop;
+
+                --------------------------------------------------------
+                -- Insert new input at the end of the delay chain.
+                --
+                -- For i = 0 this directly writes stage 0.
+                -- So row/column 0 has one common register stage.
+                --------------------------------------------------------
+                if input_en_i = '1' then
+                    stagger_regs_a(i)(i) <= a_in(i);
+                    stagger_regs_w(i)(i) <= w_in(i);
+                else
+                    stagger_regs_a(i)(i) <= (others => '0');
+                    stagger_regs_w(i)(i) <= (others => '0');
+                end if;
+
             end loop;
+
         end if;
 
-    end process;
-                    
+    end process stagger_proc;
+
+    --------------------------------------------------------------------
+    -- PE grid
+    --------------------------------------------------------------------
     gen_pe_row : for i in 0 to NUM_PE-1 generate
         gen_pe_col : for j in 0 to NUM_PE-1 generate
 

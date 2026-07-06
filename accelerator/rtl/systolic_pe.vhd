@@ -5,14 +5,14 @@ use work.systolic_pkg.all;
 
 entity systolic_pe is
     port (
-        a_in        : in  signed (DATA_WIDTH-1 downto 0);
-        w_in        : in  signed (DATA_WIDTH-1 downto 0);
-        clear_i     : in  std_logic;
-        clk_i       : in  std_logic;
+        a_in        : in  signed (DATA_WIDTH-1 downto 0); -- input activation
+        w_in        : in  signed (DATA_WIDTH-1 downto 0); -- input weight
+        clear_i     : in  std_logic; -- synchronous clear signal
+        clk_i       : in  std_logic; 
         rst_i       : in  std_logic;
-        a_out       : out  signed (DATA_WIDTH-1 downto 0);
-        w_out       : out  signed (DATA_WIDTH-1 downto 0);
-        p_sum_out   : out  signed (ACC_WIDTH-1 downto 0)
+        a_out       : out  signed (DATA_WIDTH-1 downto 0); -- output activation
+        w_out       : out  signed (DATA_WIDTH-1 downto 0); -- output weight
+        p_sum_out   : out  signed (ACC_WIDTH-1 downto 0) -- output sum
     );
 end systolic_pe;
 
@@ -38,7 +38,7 @@ begin
             else
                 a_reg <= a_in;
                 w_reg <= w_in;
-                p_sum <= p_sum + resize(a_in * w_in, ACC_WIDTH);
+                p_sum <= p_sum + resize(a_in * w_in, ACC_WIDTH); -- accumulate the product of a_in and w_in into p_sum
             end if;
         end if;
     end process;
