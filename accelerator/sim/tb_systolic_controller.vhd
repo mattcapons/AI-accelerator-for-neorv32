@@ -8,85 +8,105 @@ use work.systolic_pkg.all;
 entity tb_systolic_controller is
 end entity tb_systolic_controller;
 
-architecture Behavioral of tb_systolic_controller is
+architecture sim of tb_systolic_controller is
 
     ----------------------------------------------------------------
     -- DUT signals
     ----------------------------------------------------------------
-    signal a_buff       : byte_array_t := (others => (others => '0'));
-    signal w_buff       : byte_array_t := (others => (others => '0'));
-    signal clear_result : std_logic := '0';
-    signal clk          : std_logic := '0';
-    signal rst          : std_logic := '0';
-    signal start        : std_logic := '0';
+    signal p_sums_i      : out_array_t := (others => (others => (others => '0')));
+    signal clk_i         : std_logic := '0';
+    signal rst_i         : std_logic := '0';
+    signal start_i       : std_logic := '0';
 
-    signal a_feed       : byte_array_t;
-    signal w_feed       : byte_array_t;
-    signal pop          : std_logic_vector(0 to NUM_PE-1);
-    signal clear        : std_logic;
-    signal done         : std_logic;
+    signal p_sum_o       : signed(ACC_WIDTH-1 downto 0);
+    signal rdy_o         : std_logic;
+    signal feed_idx_o    : integer range 0 to NUM_PE-1;
+    signal clear_o       : std_logic;
+    signal done_o        : std_logic;
+    signal feed_valid_o  : std_logic;
+    signal p_sum_valid_o : std_logic;
 
     constant CLK_PERIOD : time := 10 ns;
 
     ----------------------------------------------------------------
-    -- Helper function: convert integer to DATA_WIDTH signed
+    -- Helper function
     ----------------------------------------------------------------
-    function signed_data(x : integer) return signed is
+    function signed_acc(x : integer) return signed is
     begin
-        return to_signed(x, DATA_WIDTH);
+        return to_signed(x, ACC_WIDTH);
     end function;
 
     ----------------------------------------------------------------
-    -- Helper procedure: wait one clock and allow combinational outputs to settle
+    -- Wait one clock and allow combinational outputs to settle
     ----------------------------------------------------------------
     procedure tick is
     begin
-        wait until rising_edge(clk);
+        wait until rising_edge(clk_i);
         wait for 1 ns;
     end procedure;
 
     ----------------------------------------------------------------
-    -- Helper procedure: check one controller cycle
+    -- Generic controller-output check
     ----------------------------------------------------------------
-    procedure check_cycle(
-        constant expected_pop   : in std_logic_vector(0 to NUM_PE-1);
-        constant expected_done  : in std_logic;
-        constant expected_clear : in std_logic;
-        constant expected_feed  : in std_logic_vector(0 to NUM_PE-1);
-        constant test_name      : in string
+    procedure check_ctrl(
+        constant expected_rdy         : in std_logic;
+        constant expected_feed_valid  : in std_logic;
+        constant expected_feed_idx    : in integer;
+        constant expected_p_sum_valid : in std_logic;
+        constant expected_p_sum       : in integer;
+        constant expected_done        : in std_logic;
+        constant expected_clear       : in std_logic;
+        constant test_name            : in string
     ) is
+        variable actual_p_sum : integer;
     begin
-        assert pop = expected_pop
-            report "FAIL: " & test_name & " pop wrong"
+
+        assert rdy_o = expected_rdy
+            report "FAIL: " & test_name & " rdy_o wrong. Expected " &
+                   std_logic'image(expected_rdy) & ", got " &
+                   std_logic'image(rdy_o)
             severity failure;
 
-        assert done = expected_done
-            report "FAIL: " & test_name & " done wrong"
+        assert feed_valid_o = expected_feed_valid
+            report "FAIL: " & test_name & " feed_valid_o wrong. Expected " &
+                   std_logic'image(expected_feed_valid) & ", got " &
+                   std_logic'image(feed_valid_o)
             severity failure;
 
-        assert clear = expected_clear
-            report "FAIL: " & test_name & " clear wrong"
+        assert feed_idx_o = expected_feed_idx
+            report "FAIL: " & test_name & " feed_idx_o wrong. Expected " &
+                   integer'image(expected_feed_idx) & ", got " &
+                   integer'image(feed_idx_o)
             severity failure;
 
-        for i in 0 to NUM_PE-1 loop
-            if expected_feed(i) = '1' then
-                assert a_feed(i) = a_buff(i)
-                    report "FAIL: " & test_name & " a_feed(" & integer'image(i) & ") wrong"
-                    severity failure;
+        assert p_sum_valid_o = expected_p_sum_valid
+            report "FAIL: " & test_name & " p_sum_valid_o wrong. Expected " &
+                   std_logic'image(expected_p_sum_valid) & ", got " &
+                   std_logic'image(p_sum_valid_o)
+            severity failure;
 
-                assert w_feed(i) = w_buff(i)
-                    report "FAIL: " & test_name & " w_feed(" & integer'image(i) & ") wrong"
-                    severity failure;
-            else
-                assert a_feed(i) = to_signed(0, DATA_WIDTH)
-                    report "FAIL: " & test_name & " a_feed(" & integer'image(i) & ") should be zero"
-                    severity failure;
+        if expected_p_sum_valid = '1' then
+            actual_p_sum := to_integer(p_sum_o);
 
-                assert w_feed(i) = to_signed(0, DATA_WIDTH)
-                    report "FAIL: " & test_name & " w_feed(" & integer'image(i) & ") should be zero"
-                    severity failure;
-            end if;
-        end loop;
+            assert actual_p_sum = expected_p_sum
+                report "FAIL: " & test_name & " p_sum_o wrong. Expected " &
+                       integer'image(expected_p_sum) & ", got " &
+                       integer'image(actual_p_sum)
+                severity failure;
+        end if;
+
+        assert done_o = expected_done
+            report "FAIL: " & test_name & " done_o wrong. Expected " &
+                   std_logic'image(expected_done) & ", got " &
+                   std_logic'image(done_o)
+            severity failure;
+
+        assert clear_o = expected_clear
+            report "FAIL: " & test_name & " clear_o wrong. Expected " &
+                   std_logic'image(expected_clear) & ", got " &
+                   std_logic'image(clear_o)
+            severity failure;
+
     end procedure;
 
 begin
@@ -96,17 +116,17 @@ begin
     ----------------------------------------------------------------
     dut : entity work.systolic_controller
         port map (
-            a_buff_i       => a_buff,
-            w_buff_i       => w_buff,
-            clear_result_i => clear_result,
-            clk_i          => clk,
-            rst_i          => rst,
-            start_i        => start,
-            a_feed_o       => a_feed,
-            w_feed_o       => w_feed,
-            pop_o          => pop,
-            clear_o        => clear,
-            done_o         => done
+            p_sums_i      => p_sums_i,
+            clk_i         => clk_i,
+            rst_i         => rst_i,
+            start_i       => start_i,
+            p_sum_o       => p_sum_o,
+            rdy_o         => rdy_o,
+            feed_idx_o    => feed_idx_o,
+            clear_o       => clear_o,
+            done_o        => done_o,
+            feed_valid_o  => feed_valid_o,
+            p_sum_valid_o => p_sum_valid_o
         );
 
     ----------------------------------------------------------------
@@ -115,165 +135,179 @@ begin
     clk_process : process
     begin
         while true loop
-            clk <= '0';
+            clk_i <= '0';
             wait for CLK_PERIOD / 2;
-            clk <= '1';
+            clk_i <= '1';
             wait for CLK_PERIOD / 2;
         end loop;
     end process;
 
     ----------------------------------------------------------------
-    -- Stimulus process
+    -- Stimulus
     ----------------------------------------------------------------
     stimulus : process
+        variable expected_value : integer;
     begin
 
         ----------------------------------------------------------------
-        -- Initialize fake buffer outputs
+        -- Initialize fake systolic-array outputs.
+        --
+        -- p_sums_i(i,j) = 10*i + j
+        --
+        -- So row-major output should be:
+        -- 0, 1, 2, 3,
+        -- 10, 11, 12, 13,
+        -- 20, 21, 22, 23,
+        -- 30, 31, 32, 33
         ----------------------------------------------------------------
         for i in 0 to NUM_PE-1 loop
-            a_buff(i) <= signed_data(i + 1);       -- 1, 2, 3, 4
-            w_buff(i) <= signed_data(10 + i + 1);  -- 11, 12, 13, 14
+            for j in 0 to NUM_PE-1 loop
+                p_sums_i(i, j) <= signed_acc(10*i + j);
+            end loop;
         end loop;
 
         ----------------------------------------------------------------
         -- Reset
         ----------------------------------------------------------------
-        rst          <= '1';
-        start        <= '0';
-        clear_result <= '0';
+        rst_i   <= '1';
+        start_i <= '0';
 
         wait for 2 * CLK_PERIOD;
-        rst <= '0';
+        wait until rising_edge(clk_i);
+        wait for 1 ns;
+
+        rst_i <= '0';
 
         tick;
 
-        check_cycle(
-            expected_pop   => "0000",
-            expected_done  => '0',
-            expected_clear => '0',
-            expected_feed  => "0000",
-            test_name      => "IDLE after reset"
+        check_ctrl(
+            expected_rdy         => '1',
+            expected_feed_valid  => '0',
+            expected_feed_idx    => 0,
+            expected_p_sum_valid => '0',
+            expected_p_sum       => 0,
+            expected_done        => '0',
+            expected_clear       => '0',
+            test_name            => "IDLE after reset"
         );
 
         ----------------------------------------------------------------
-        -- Start pulse: next state should be PRELOAD
+        -- Start pulse.
+        -- After this clock, FSM is in FEED with cycle_count = 0.
         ----------------------------------------------------------------
-        start <= '1';
+        start_i <= '1';
         tick;
-        start <= '0';
+        start_i <= '0';
 
-        check_cycle(
-            expected_pop   => "1000",
-            expected_done  => '0',
-            expected_clear => '0',
-            expected_feed  => "0000",
-            test_name      => "PRELOAD"
+        check_ctrl(
+            expected_rdy         => '0',
+            expected_feed_valid  => '0',
+            expected_feed_idx    => 0,
+            expected_p_sum_valid => '0',
+            expected_p_sum       => 0,
+            expected_done        => '0',
+            expected_clear       => '0',
+            test_name            => "FEED dummy cycle"
         );
 
         ----------------------------------------------------------------
-        -- FEED cycles
+        -- FEED cycles.
         --
-        -- For NUM_PE = 4:
+        -- This matches your current controller code:
         --
-        -- FEED 0:
-        --   feed lane 0
-        --   pop lanes 0,1
+        -- cycle_count = 1 -> feed_idx_o = 1
+        -- cycle_count = 2 -> feed_idx_o = 2
+        -- cycle_count = 3 -> feed_idx_o = 3
+        -- cycle_count = 4 -> feed_idx_o = 0
         --
-        -- FEED 1:
-        --   feed lanes 0,1
-        --   pop lanes 0,1,2
-        --
-        -- FEED 2:
-        --   feed lanes 0,1,2
-        --   pop lanes 0,1,2,3
-        --
-        -- FEED 3:
-        --   feed lanes 0,1,2,3
-        --   pop lanes 1,2,3
-        --
-        -- FEED 4:
-        --   feed lanes 1,2,3
-        --   pop lanes 2,3
-        --
-        -- FEED 5:
-        --   feed lanes 2,3
-        --   pop lane 3
-        --
-        -- FEED 6:
-        --   feed lane 3
-        --   pop none
+        -- If you later change feed_idx_o to cycle_count - 1, then these
+        -- expected values must become 0, 1, 2, 3.
         ----------------------------------------------------------------
+        tick;
+        check_ctrl('0', '1', 1, '0', 0, '0', '0', "FEED cycle 1");
 
         tick;
-        check_cycle("1100", '0', '0', "1000", "FEED cycle 0");
+        check_ctrl('0', '1', 2, '0', 0, '0', '0', "FEED cycle 2");
 
         tick;
-        check_cycle("1110", '0', '0', "1100", "FEED cycle 1");
+        check_ctrl('0', '1', 3, '0', 0, '0', '0', "FEED cycle 3");
 
         tick;
-        check_cycle("1111", '0', '0', "1110", "FEED cycle 2");
-
-        tick;
-        check_cycle("0111", '0', '0', "1111", "FEED cycle 3");
-
-        tick;
-        check_cycle("0011", '0', '0', "0111", "FEED cycle 4");
-
-        tick;
-        check_cycle("0001", '0', '0', "0011", "FEED cycle 5");
-
-        tick;
-        check_cycle("0000", '0', '0', "0001", "FEED cycle 6");
+        check_ctrl('0', '1', 0, '0', 0, '0', '0', "FEED cycle 4");
 
         ----------------------------------------------------------------
-        -- DRAIN cycles
-        --
-        -- For NUM_PE = 4, DRAIN lasts NUM_PE-1 = 3 effective cycles.
-        -- With your counter condition cycle_count = NUM_PE-2, we observe
-        -- three DRAIN output cycles.
+        -- DRAIN cycle
         ----------------------------------------------------------------
-
         tick;
-        check_cycle("0000", '0', '0', "0000", "DRAIN cycle 0");
+        check_ctrl(
+            expected_rdy         => '0',
+            expected_feed_valid  => '0',
+            expected_feed_idx    => 0,
+            expected_p_sum_valid => '0',
+            expected_p_sum       => 0,
+            expected_done        => '0',
+            expected_clear       => '0',
+            test_name            => "DRAIN"
+        );
 
-        tick;
-        check_cycle("0000", '0', '0', "0000", "DRAIN cycle 1");
+        ----------------------------------------------------------------
+        -- OUTPUT cycles.
+        -- Controller should serialize p_sums_i row-major.
+        ----------------------------------------------------------------
+        for i in 0 to NUM_PE-1 loop
+            for j in 0 to NUM_PE-1 loop
 
-        tick;
-        check_cycle("0000", '0', '0', "0000", "DRAIN cycle 2");
+                tick;
+
+                expected_value := 10*i + j;
+
+                check_ctrl(
+                    expected_rdy         => '0',
+                    expected_feed_valid  => '0',
+                    expected_feed_idx    => 0,
+                    expected_p_sum_valid => '1',
+                    expected_p_sum       => expected_value,
+                    expected_done        => '0',
+                    expected_clear       => '0',
+                    test_name            => "OUTPUT (" &
+                                            integer'image(i) & "," &
+                                            integer'image(j) & ")"
+                );
+
+            end loop;
+        end loop;
 
         ----------------------------------------------------------------
         -- DONE
         ----------------------------------------------------------------
-
         tick;
-        check_cycle("0000", '1', '0', "0000", "DONE");
 
-        ----------------------------------------------------------------
-        -- Stay in DONE until clear_result is asserted
-        ----------------------------------------------------------------
-
-        tick;
-        check_cycle("0000", '1', '0', "0000", "DONE hold");
-
-        ----------------------------------------------------------------
-        -- Request clear
-        ----------------------------------------------------------------
-
-        clear_result <= '1';
-        tick;
-        clear_result <= '0';
-
-        -- Your controller keeps done high in CLEAR.
-        check_cycle("0000", '1', '1', "0000", "CLEAR");
+        check_ctrl(
+            expected_rdy         => '0',
+            expected_feed_valid  => '0',
+            expected_feed_idx    => 0,
+            expected_p_sum_valid => '0',
+            expected_p_sum       => 0,
+            expected_done        => '1',
+            expected_clear       => '1',
+            test_name            => "DONE"
+        );
 
         ----------------------------------------------------------------
         -- Back to IDLE
         ----------------------------------------------------------------
-
         tick;
-        check_cycle("0000", '0', '0', "0000", "IDLE after CLEAR");
+
+        check_ctrl(
+            expected_rdy         => '1',
+            expected_feed_valid  => '0',
+            expected_feed_idx    => 0,
+            expected_p_sum_valid => '0',
+            expected_p_sum       => 0,
+            expected_done        => '0',
+            expected_clear       => '0',
+            test_name            => "IDLE after DONE"
+        );
 
         ----------------------------------------------------------------
         -- End simulation
@@ -284,4 +318,4 @@ begin
 
     end process;
 
-end architecture Behavioral;
+end architecture sim;

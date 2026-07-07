@@ -11,11 +11,11 @@ entity systolic_controller is
         start_i         : in std_logic;
         p_sum_o         : out signed(ACC_WIDTH-1 downto 0);
         rdy_o           : out std_logic;
-        feed_idx_o          : out integer range 0 to NUM_PE-1;
+        feed_idx_o      : out integer range 0 to NUM_PE-1;
         clear_o         : out std_logic;
         done_o          : out std_logic;
         feed_valid_o    : out std_logic;
-        p_sum_valid_o   :out std_logic
+        p_sum_valid_o   : out std_logic
     );
 end systolic_controller;
 
