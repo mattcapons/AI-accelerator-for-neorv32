@@ -10,12 +10,10 @@ rtl_sources=(
   rtl/systolic_pe.vhd
   rtl/systolic_array.vhd
   rtl/systolic_controller.vhd
-  rtl/buffer_unit.vhd
   rtl/systolic_engine.vhd
 )
 
 default_tests=(
-  tb_buffer_unit
   tb_systolic_pe
   tb_systolic_controller
   tb_systolic_array

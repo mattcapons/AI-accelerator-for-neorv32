@@ -12,7 +12,7 @@ entity systolic_engine is
         clk_i           : in std_logic;
         rst_i           : in std_logic;
         start_i         : in std_logic;
-        feed_idx_o      : in integer range 0 to NUM_PE-1;
+        feed_idx_o      : out integer range 0 to NUM_PE-1;
         rdy_o           : out std_logic;
         done_o          : out std_logic;
         p_sum_out       : out signed(ACC_WIDTH-1 downto 0);
@@ -30,7 +30,7 @@ architecture Behavioral of systolic_engine is
     signal feed_int : std_logic;
 
 begin
-    
+
     gen_unpack : for i in 0 to NUM_PE-1 generate
         constant hi : integer := (NUM_PE - i) * DATA_WIDTH - 1;
         constant lo : integer := hi - DATA_WIDTH + 1;
