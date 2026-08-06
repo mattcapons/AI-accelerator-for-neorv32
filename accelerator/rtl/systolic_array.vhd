@@ -8,9 +8,10 @@ entity systolic_array is
         a_in       : in  data_array_t;
         w_in       : in  data_array_t;
         clear_i    : in  std_logic;
+        input_en_i : in  std_logic;
+        comp_en_i  : in  std_logic;
         clk_i      : in  std_logic;
         rst_i      : in  std_logic;
-        input_en_i : in  std_logic;
         p_sums_out : out out_array_t
     );
 end entity systolic_array;
@@ -52,25 +53,25 @@ begin
             stagger_regs_w <= (others => (others => (others => '0')));
 
         elsif rising_edge(clk_i) then
+            if comp_en_i = '1' then
+                for i in 0 to NUM_PE-1 loop
 
-            for i in 0 to NUM_PE-1 loop
+                    -- Shift delay chain for lane i.
+                    for j in 0 to i-1 loop
+                        stagger_regs_a(j)(i) <= stagger_regs_a(j+1)(i);
+                        stagger_regs_w(j)(i) <= stagger_regs_w(j+1)(i);
+                    end loop;
 
-                -- Shift delay chain for lane i.
-                for j in 0 to i-1 loop
-                    stagger_regs_a(j)(i) <= stagger_regs_a(j+1)(i);
-                    stagger_regs_w(j)(i) <= stagger_regs_w(j+1)(i);
+                    -- Insert new input at the end of the delay chain.
+                    if input_en_i = '1' then
+                        stagger_regs_a(i)(i) <= a_in(i);
+                        stagger_regs_w(i)(i) <= w_in(i);
+                    else
+                        stagger_regs_a(i)(i) <= (others => '0');
+                        stagger_regs_w(i)(i) <= (others => '0');
+                    end if;
                 end loop;
-
-                -- Insert new input at the end of the delay chain.
-                if input_en_i = '1' then
-                    stagger_regs_a(i)(i) <= a_in(i);
-                    stagger_regs_w(i)(i) <= w_in(i);
-                else
-                    stagger_regs_a(i)(i) <= (others => '0');
-                    stagger_regs_w(i)(i) <= (others => '0');
-                end if;
-
-            end loop;
+            end if;
 
         end if;
 
@@ -85,6 +86,7 @@ begin
                     a_in      => a_regs(i, j),
                     w_in      => w_regs(i, j),
                     clear_i   => clear_i,
+                    en_i      => comp_en_i,
                     clk_i     => clk_i,
                     rst_i     => rst_i,
                     a_out     => a_regs(i, j+1),
