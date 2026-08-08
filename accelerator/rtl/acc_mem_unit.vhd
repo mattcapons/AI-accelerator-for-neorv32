@@ -21,9 +21,7 @@ end entity acc_mem_unit;
 
 architecture Behavioral of acc_mem_unit is
 
-    type mem_t is array (
-        0 to MEM_DEPTH-1
-    ) of std_logic_vector(NUM_PE*DATA_WIDTH-1 downto 0);
+    type mem_t is array (0 to MEM_DEPTH-1) of std_logic_vector(NUM_PE*DATA_WIDTH-1 downto 0);
 
     signal mem_reg : mem_t;
 
