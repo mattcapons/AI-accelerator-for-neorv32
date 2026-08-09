@@ -67,6 +67,9 @@ begin
         ------------------------------------------------------------------------
         stim_process : process
 
+            ------------------------------------------------------------------------
+            -- Write procedures
+            ------------------------------------------------------------------------
             procedure write(addr : integer; value : integer) is
             begin
                 wr_en_i <= '1';
@@ -78,6 +81,11 @@ begin
                 wr_en_i <= '0';
             end procedure;
 
+            ------------------------------------------------------------------------
+            -- Read procedures
+            ------------------------------------------------------------------------
+
+            -- Variable needed for the result
             variable result : integer;
 
             procedure read(addr : integer; variable res : out integer) is
@@ -91,6 +99,8 @@ begin
             end procedure;
 
         begin
+
+            -- Test reset
             rst_i <= '1';
             wait for 2 ns;
             rst_i <= '0';
@@ -102,12 +112,16 @@ begin
                     severity failure;
             end loop;
 
+
+            -- Test simple write read
             write(0, 1);
             read(0, result);
             assert result = 1
                 report "Error in simple write read"
                 severity failure;
 
+
+            -- Test reset with data
             rst_i <= '1';
             wait for 2 ns;
             rst_i <= '0';
@@ -119,6 +133,8 @@ begin
                     severity failure;
             end loop;
 
+
+            -- Test multiple write and read
             for i in 0 to NUM_PE-1 loop
                 write(i, i+1);
             end loop;
@@ -130,6 +146,8 @@ begin
                     severity failure;
             end loop;
 
+
+            -- Test write enable
             wr_en_i <= '0';
             write_addr_i <= 0;
             data_i <= int_to_vect(10);
@@ -157,6 +175,8 @@ begin
                 report "Error in write enable when 1"
                 severity failure;
 
+
+            -- Test reading while writing
             wr_en_i <= '1';
             write_addr_i <= 1;
             data_i <= int_to_vect(5);

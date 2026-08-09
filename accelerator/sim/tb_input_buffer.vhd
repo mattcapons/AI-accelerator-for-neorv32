@@ -9,8 +9,6 @@ end tb_input_buffer;
 
 architecture sim of tb_input_buffer is
 
-
-
     ------------------------------------------------------------------------
     -- DUT signals
     ------------------------------------------------------------------------
@@ -34,7 +32,10 @@ architecture sim of tb_input_buffer is
     ------------------------------------------------------------------------
     constant CLK_PERIOD : time := 10 ns;
 
+
+    ------------------------------------------------------------------------
     -- Conversion functions
+    ------------------------------------------------------------------------
     function int_to_vect(num : integer) return std_logic_vector is
     begin
         return std_logic_vector(to_unsigned(num, NUM_PE*DATA_WIDTH));
@@ -88,12 +89,14 @@ begin
         stim_process : process
 
 
+            ------------------------------------------------------------------------
+            -- Write procedures
+            ------------------------------------------------------------------------
             procedure write(a : integer; w : integer) is
             begin
                 assert a_rdy_o = '1' and w_rdy_o = '1'
                     report "Buffer not ready for write"
                     severity failure;
-
 
                 a_vld_i <= '1';
                 w_vld_i <= '1';
@@ -110,6 +113,11 @@ begin
                 wait for 1 ns;
             end procedure;
 
+            ------------------------------------------------------------------------
+            -- Read procedures
+            ------------------------------------------------------------------------
+
+            -- variables needed for the output
             variable a_output : integer;
             variable w_output : integer;
 
@@ -135,6 +143,7 @@ begin
 
         begin
 
+            -- Test reset
             rst_i <= '1';
             wait for 1 ns;
             rst_i <= '0';
@@ -143,6 +152,8 @@ begin
                 report "Error in valid/ready signals after reset"
                 severity failure;
 
+
+            -- Test enable
             en_i <= '1';
             wait until rising_edge(clk_i);
             wait for 1 ns;
@@ -152,6 +163,7 @@ begin
                 severity failure;
 
 
+            -- Test full write and read for 1 block
             for i in 0 to NUM_PE-1 loop
                 write(i+1, i+2);
             end loop;
@@ -168,6 +180,7 @@ begin
                 severity failure;
 
 
+            -- Test 2 blocks write
             for i in 0 to NUM_PE-1 loop
                 write(i+1, i+2);
             end loop;
@@ -180,6 +193,8 @@ begin
                 report "Error in ready after 2 blocks are written"
                 severity failure;
 
+
+            -- Test 2 blocks read
             for i in 0 to NUM_PE-1 loop
                 read(a_output, w_output);
                 assert a_output = i+1 and w_output = i+2
@@ -197,6 +212,7 @@ begin
                     report "Second read is out of order"
                     severity failure;
             end loop;
+
 
             -- Manual write only for a
             assert a_rdy_o = '1'
@@ -241,8 +257,7 @@ begin
             wait for 1 ns;
 
 
-
-
+            -- Test consumer not ready and output remains the same
             rdy_i <= '0';
             wait for 1 ns;
 
