@@ -25,31 +25,9 @@ architecture sim of tb_acc_mem_unit is
     ------------------------------------------------------------------------
     constant CLK_PERIOD : time := 10 ns;
 
-    ------------------------------------------------------------------------
-    -- Convert integer matrix column to 8-bit std_logic_vector array
-    ------------------------------------------------------------------------
-    procedure write(addr : integer; value : integer) is
+    function int_to_vect(num : integer) return std_logic_vector is
     begin
-        wr_en_i <= '1';
-        write_addr_i <= addr;
-        data_i <= std_logic_vector(to_unsigned(value, NUM_PE*DATA_WIDTH));
-
-        wait until rising_edge(clk_i);
-        wait for 10 ns;
-
-        wr_en_i <= '0';
-    end procedure;
-
-    function read(addr : integer) return integer is
-        variable result : integer := 0;
-    begin
-        read_addr_i <= addr;
-
-        wait until rising_edge(clk_i);
-        wait for 10 ns;
-
-        result := to_integer(signed(data_o));
-        return result;
+        return std_logic_vector(to_unsigned(num, NUM_PE*DATA_WIDTH));
     end function;
 
 begin
@@ -59,7 +37,7 @@ begin
     ------------------------------------------------------------------------
     dut_inst : entity work.acc_mem_unit
         generic map(
-            MEM_DEPTH => 2 * NUM_PE
+            MEM_DEPTH => NUM_PE
         )
         port map (
             data_i          => data_i,
@@ -88,9 +66,113 @@ begin
         -- Stimulus process
         ------------------------------------------------------------------------
         stim_process : process
+
+            procedure write(addr : integer; value : integer) is
+            begin
+                wr_en_i <= '1';
+                write_addr_i <= addr;
+                data_i <= int_to_vect(value);
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+
+                wr_en_i <= '0';
+            end procedure;
+
+            variable result : integer;
+
+            procedure read(addr : integer; variable res : out integer) is
+            begin
+                read_addr_i <= addr;
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+
+                res := to_integer(signed(data_o));
+            end procedure;
+
         begin
+            rst_i <= '1';
+            wait for 2 ns;
+            rst_i <= '0';
 
+            for i in 0 to NUM_PE-1 loop
+                read(i, result);
+                assert result = 0
+                    report "Error in reset 1"
+                    severity failure;
+            end loop;
 
+            write(0, 1);
+            read(0, result);
+            assert result = 1
+                report "Error in simple write read"
+                severity failure;
+
+            rst_i <= '1';
+            wait for 2 ns;
+            rst_i <= '0';
+
+            for i in 0 to NUM_PE-1 loop
+                read(i, result);
+                assert result = 0
+                    report "Error in reset 2"
+                    severity failure;
+            end loop;
+
+            for i in 0 to NUM_PE-1 loop
+                write(i, i+1);
+            end loop;
+
+            for i in NUM_PE-1 downto 0 loop
+                read(i, result);
+                assert result = i+1
+                    report "Error in read out of order"
+                    severity failure;
+            end loop;
+
+            wr_en_i <= '0';
+            write_addr_i <= 0;
+            data_i <= int_to_vect(10);
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            read(0, result);
+            assert result = 1
+                report "Error in write enable when 0"
+                severity failure;
+
+            wr_en_i <= '1';
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            wr_en_i <= '0';
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            read(0, result);
+            assert result = 10
+                report "Error in write enable when 1"
+                severity failure;
+
+            wr_en_i <= '1';
+            write_addr_i <= 1;
+            data_i <= int_to_vect(5);
+            read_addr_i <= 0;
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            assert to_integer(signed(data_o)) = 10
+                report "Error when reading while writing"
+                severity failure;
+
+            assert false
+                report "TEST PASSED: acc_mem_unit behaves correctly"
+                severity note;
+                stop;
         end process;
 
 

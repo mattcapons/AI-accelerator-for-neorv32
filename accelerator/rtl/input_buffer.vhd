@@ -86,6 +86,10 @@ begin
         variable a_wr_count : integer range 0 to NUM_PE-1 := 0;
         variable w_wr_count : integer range 0 to NUM_PE-1 := 0;
 
+        -- WRITE FLAGS
+        variable a_finished : boolean := false;
+        variable w_finished : boolean := false;
+
         -- READ COUNT
         variable rd_count : integer range 0 to NUM_PE-1 := 0;
     begin
@@ -98,6 +102,8 @@ begin
             -- WRITE SIDE
             a_wr_count := 0;
             w_wr_count := 0;
+            a_finished := false;
+            w_finished := false;
             a_wr_addr <= 0;
             w_wr_addr <= 0;
             bl_wr_count <= 0;
@@ -116,6 +122,7 @@ begin
                 else
                     a_state(bl_wr_count) <= FULL;
                     a_wr_count := 0;
+                    a_finished := true;
                 end if;
             end if;
 
@@ -126,13 +133,16 @@ begin
                 else
                     w_state(bl_wr_count) <= FULL;
                     w_wr_count := 0;
+                    w_finished := true;
                 end if;
             end if;
 
-            if a_state(bl_wr_count) = FULL and w_state(bl_wr_count) = FULL then
+            if a_finished and w_finished then
                 bl_wr_count <= 1 - bl_wr_count;
                 a_wr_addr <= (1-bl_wr_count) * NUM_PE;
                 w_wr_addr <= (1-bl_wr_count) * NUM_PE;
+                a_finished := false;
+                w_finished := false;
             end if;
 
             -- READ SIDE
