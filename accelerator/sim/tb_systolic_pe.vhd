@@ -13,9 +13,9 @@ architecture sim of tb_systolic_pe is
     signal a_in      : signed(DATA_WIDTH-1 downto 0)  := (others => '0');
     signal w_in      : signed(DATA_WIDTH-1 downto 0)  := (others => '0');
     signal clear_i   : std_logic := '0';
+    signal en_i      : std_logic := '0';
     signal clk_i     : std_logic := '0';
     signal rst_i     : std_logic := '0';
-
     signal a_out     : signed(DATA_WIDTH-1 downto 0);
     signal w_out     : signed(DATA_WIDTH-1 downto 0);
     signal p_sum_out : signed(ACC_WIDTH-1 downto 0);
@@ -80,6 +80,7 @@ begin
             a_in      => a_in,
             w_in      => w_in,
             clear_i   => clear_i,
+            en_i      => en_i,
             clk_i     => clk_i,
             rst_i     => rst_i,
             a_out     => a_out,
@@ -112,6 +113,7 @@ begin
         --------------------------------------------------------------------
         rst_i   <= '1';
         clear_i <= '0';
+        en_i <= '1';
 
         -- Intentionally non-zero values to prove reset dominates the datapath.
         a_in <= f_sign_d(55);
@@ -139,6 +141,25 @@ begin
         wait for 1 ns;
 
         check_outputs(0, 0, 0, "reset release with zero inputs");
+
+        en_i <= '0';
+
+        -- Intentionally non-zero values to prove enable works.
+        a_in <= f_sign_d(55);
+        w_in <= f_sign_d(-12);
+
+        wait until rising_edge(clk_i);
+        wait for 1 ns;
+
+        check_outputs(0, 0, 0, "asynchronous reset after clock edge");
+
+        en_i <= '1';
+        a_in  <= f_sign_d(0);
+        w_in  <= f_sign_d(0);
+
+        wait until rising_edge(clk_i);
+        wait for 1 ns;
+
 
         --------------------------------------------------------------------
         -- Normal accumulation with at least 3 sets of values
