@@ -34,12 +34,10 @@ begin
                 acc_reg <= (others => '0');
                 a_out <= (others => '0');
                 w_out <= (others => '0');
-            else
-                if en_i = '1' then
-                    a_out <= a_in;
-                    w_out <= w_in;
-                    acc_reg <= acc_reg + resize(a_in * w_in, ACC_WIDTH); -- accumulate the product of a_in and w_in into p_sum
-                end if;
+            elsif en_i = '1' then
+                a_out <= a_in;
+                w_out <= w_in;
+                acc_reg <= acc_reg + resize(a_in * w_in, ACC_WIDTH); -- accumulate the product of a_in and w_in into p_sum
             end if;
         end if;
     end process;

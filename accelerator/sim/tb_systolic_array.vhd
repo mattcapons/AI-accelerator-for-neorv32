@@ -24,6 +24,7 @@ architecture sim of tb_systolic_array is
     signal clk_i      : std_logic := '0';
     signal rst_i      : std_logic := '0';
     signal input_en_i : std_logic := '0';
+    signal comp_en_i  : std_logic := '0';
     signal p_sums_out : out_array_t;
 
     ------------------------------------------------------------------------
@@ -90,7 +91,7 @@ architecture sim of tb_systolic_array is
         w_sig <= (others => (others => '0'));
         clear_sig <= '1';
         wait until rising_edge(clk_i);
-        wait for 1 ns;  
+        wait for 1 ns;
         clear_sig <= '0';
         wait until rising_edge(clk_i);
         wait for 1 ns;
@@ -116,7 +117,7 @@ architecture sim of tb_systolic_array is
             wait until rising_edge(clk_i);
             wait for 1 ns;
         end loop;
-        
+
         en_sig <= '0';
         a_sig <= (others => (others => '0'));
         w_sig <= (others => (others => '0'));
@@ -188,6 +189,7 @@ begin
             clk_i      => clk_i,
             rst_i      => rst_i,
             input_en_i => input_en_i,
+            comp_en_i  => comp_en_i,
             p_sums_out => p_sums_out
         );
 
@@ -208,6 +210,102 @@ begin
     -- Stimulus process
     ------------------------------------------------------------------------
     stim_process : process
+
+        ------------------------------------------------------------------------
+        -- Clear the DUT input arrays
+        ------------------------------------------------------------------------
+        procedure clear_array is
+        begin
+            comp_en_i <= '0';
+            input_en_i <= '0';
+            a_in <= (others => (others => '0'));
+            w_in <= (others => (others => '0'));
+            clear_i <= '1';
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+            clear_i <= '0';
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+        end procedure;
+
+        ------------------------------------------------------------------------
+        -- Feed one full matrix multiplication into the systolic array
+        ------------------------------------------------------------------------
+        procedure full_compute(
+            signal a_sig     : inout data_array_t;
+            signal w_sig     : inout data_array_t;
+            signal en_sig    : inout std_logic;
+            constant a_matrix : in matrix_t;
+            constant w_matrix : in matrix_t
+        ) is
+        begin
+
+            for cycle in 0 to NUM_PE-1 loop
+                a_sig <= mat_col_int_to_sign(a_matrix, cycle);
+                w_sig <= mat_row_int_to_sign(w_matrix, cycle);
+                en_sig <= '1';
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            en_sig <= '0';
+            a_sig <= (others => (others => '0'));
+            w_sig <= (others => (others => '0'));
+
+            -- Wait for the final values to propagate through the array
+            for k in 0 to 2 * NUM_PE loop
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+        end procedure;
+
+        ------------------------------------------------------------------------
+        -- Check output matrix
+        ------------------------------------------------------------------------
+        procedure check_outputs(
+            constant expected_sums : in matrix_t;
+            constant test_name     : in string
+        ) is
+            variable actual_int : integer;
+        begin
+            for i in 0 to NUM_PE-1 loop
+                for j in 0 to NUM_PE-1 loop
+
+                    actual_int := to_integer(signed(p_sums_out(i, j)));
+
+                    assert actual_int = expected_sums(i, j)
+                        report "Mismatch at position (" &
+                            integer'image(i) & ", " &
+                            integer'image(j) & ") in test: " &
+                            test_name &
+                            ". Expected " & integer'image(expected_sums(i, j)) &
+                            ", got " & integer'image(actual_int)
+                        severity failure;
+
+                end loop;
+            end loop;
+        end procedure;
+
+        ------------------------------------------------------------------------
+        -- Compute expected result, run DUT computation, then check
+        ------------------------------------------------------------------------
+        procedure apply_and_check(
+            signal a_sig       : inout data_array_t;
+            signal w_sig       : inout data_array_t;
+            signal en_sig      : inout std_logic;
+            constant a_matrix : in matrix_t;
+            constant w_matrix : in matrix_t;
+            constant test_name : in string
+        ) is
+            variable expected_sums : matrix_t;
+        begin
+            expected_sums := matrix_mult(a_matrix, w_matrix);
+
+            full_compute(a_sig, w_sig, en_sig, a_matrix, w_matrix);
+
+            check_outputs(expected_sums, test_name);
+        end procedure;
 
         constant I_MATRIX : matrix_t := (
             (1, 0, 0, 0),

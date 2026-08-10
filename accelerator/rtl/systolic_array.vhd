@@ -28,19 +28,19 @@ architecture Behavioral of systolic_array is
     type a_grid_t is array (0 to NUM_PE-1, 0 to NUM_PE) of signed(DATA_WIDTH-1 downto 0);
     type w_grid_t is array (0 to NUM_PE, 0 to NUM_PE-1) of signed(DATA_WIDTH-1 downto 0);
 
-    signal a_regs : a_grid_t := (others => (others => (others => '0')));
-    signal w_regs : w_grid_t := (others => (others => (others => '0')));
+    signal a_grid : a_grid_t := (others => (others => (others => '0')));
+    signal w_grid : w_grid_t := (others => (others => (others => '0')));
 
 begin
 
     -- Boundary connections
     -- The first stage of each delay chain feeds the array boundary.
     gen_a_boundary : for r in 0 to NUM_PE-1 generate
-        a_regs(r, 0) <= stagger_regs_a(0)(r);
+        a_grid(r, 0) <= stagger_regs_a(0)(r);
     end generate gen_a_boundary;
 
     gen_w_boundary : for c in 0 to NUM_PE-1 generate
-        w_regs(0, c) <= stagger_regs_w(0)(c);
+        w_grid(0, c) <= stagger_regs_w(0)(c);
     end generate gen_w_boundary;
 
     -- Stagger logic
@@ -48,12 +48,15 @@ begin
     begin
 
         if rst_i = '1' then
-
             stagger_regs_a <= (others => (others => (others => '0')));
             stagger_regs_w <= (others => (others => (others => '0')));
 
         elsif rising_edge(clk_i) then
-            if comp_en_i = '1' then
+            if clear_i = '1' then
+                stagger_regs_a <= (others => (others => (others => '0')));
+                stagger_regs_w <= (others => (others => (others => '0')));
+
+            elsif comp_en_i = '1' then
                 for i in 0 to NUM_PE-1 loop
 
                     -- Shift delay chain for lane i.
@@ -83,14 +86,14 @@ begin
 
             pe_inst : entity work.systolic_pe
                 port map (
-                    a_in      => a_regs(i, j),
-                    w_in      => w_regs(i, j),
+                    a_in      => a_grid(i, j),
+                    w_in      => w_grid(i, j),
                     clear_i   => clear_i,
                     en_i      => comp_en_i,
                     clk_i     => clk_i,
                     rst_i     => rst_i,
-                    a_out     => a_regs(i, j+1),
-                    w_out     => w_regs(i+1, j),
+                    a_out     => a_grid(i, j+1),
+                    w_out     => w_grid(i+1, j),
                     p_sum_out => p_sums_out(i, j)
                 );
 
