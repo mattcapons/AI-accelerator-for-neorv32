@@ -10,9 +10,8 @@ end tb_systolic_array;
 architecture sim of tb_systolic_array is
 
     ------------------------------------------------------------------------
-    -- Integer types for testbench matrices
+    -- Matrix type
     ------------------------------------------------------------------------
-    type input_array_t is array (0 to NUM_PE-1) of integer;
     type matrix_t is array (0 to NUM_PE-1, 0 to NUM_PE-1) of integer;
 
     ------------------------------------------------------------------------
@@ -76,106 +75,6 @@ architecture sim of tb_systolic_array is
         return res;
     end function;
 
-    ------------------------------------------------------------------------
-    -- Clear the DUT input arrays
-    ------------------------------------------------------------------------
-    procedure clear_array(
-        signal clear_sig : inout std_logic;
-        signal en_sig    : inout std_logic;
-        signal a_sig     : inout data_array_t;
-        signal w_sig     : inout data_array_t
-    ) is
-    begin
-        en_sig <= '0';
-        a_sig <= (others => (others => '0'));
-        w_sig <= (others => (others => '0'));
-        clear_sig <= '1';
-        wait until rising_edge(clk_i);
-        wait for 1 ns;
-        clear_sig <= '0';
-        wait until rising_edge(clk_i);
-        wait for 1 ns;
-    end procedure;
-
-    ------------------------------------------------------------------------
-    -- Feed one full matrix multiplication into the systolic array
-    ------------------------------------------------------------------------
-    procedure full_compute(
-        signal a_sig     : inout data_array_t;
-        signal w_sig     : inout data_array_t;
-        signal en_sig    : inout std_logic;
-        constant a_matrix : in matrix_t;
-        constant w_matrix : in matrix_t
-    ) is
-    begin
-
-        for cycle in 0 to NUM_PE-1 loop
-            a_sig <= mat_col_int_to_sign(a_matrix, cycle);
-            w_sig <= mat_row_int_to_sign(w_matrix, cycle);
-            en_sig <= '1';
-
-            wait until rising_edge(clk_i);
-            wait for 1 ns;
-        end loop;
-
-        en_sig <= '0';
-        a_sig <= (others => (others => '0'));
-        w_sig <= (others => (others => '0'));
-
-        -- Wait for the final values to propagate through the array
-        for k in 0 to 2 * NUM_PE loop
-            wait until rising_edge(clk_i);
-            wait for 1 ns;
-        end loop;
-    end procedure;
-
-    ------------------------------------------------------------------------
-    -- Check output matrix
-    ------------------------------------------------------------------------
-    procedure check_outputs(
-        constant expected_sums : in matrix_t;
-        constant test_name     : in string
-    ) is
-        variable actual_int : integer;
-    begin
-        for i in 0 to NUM_PE-1 loop
-            for j in 0 to NUM_PE-1 loop
-
-                actual_int := to_integer(signed(p_sums_out(i, j)));
-
-                assert actual_int = expected_sums(i, j)
-                    report "Mismatch at position (" &
-                           integer'image(i) & ", " &
-                           integer'image(j) & ") in test: " &
-                           test_name &
-                           ". Expected " & integer'image(expected_sums(i, j)) &
-                           ", got " & integer'image(actual_int)
-                    severity failure;
-
-            end loop;
-        end loop;
-    end procedure;
-
-    ------------------------------------------------------------------------
-    -- Compute expected result, run DUT computation, then check
-    ------------------------------------------------------------------------
-    procedure apply_and_check(
-        signal a_sig       : inout data_array_t;
-        signal w_sig       : inout data_array_t;
-        signal en_sig      : inout std_logic;
-        constant a_matrix : in matrix_t;
-        constant w_matrix : in matrix_t;
-        constant test_name : in string
-    ) is
-        variable expected_sums : matrix_t;
-    begin
-        expected_sums := matrix_mult(a_matrix, w_matrix);
-
-        full_compute(a_sig, w_sig, en_sig, a_matrix, w_matrix);
-
-        check_outputs(expected_sums, test_name);
-    end procedure;
-
 begin
 
     ------------------------------------------------------------------------
@@ -232,32 +131,32 @@ begin
         -- Feed one full matrix multiplication into the systolic array
         ------------------------------------------------------------------------
         procedure full_compute(
-            signal a_sig     : inout data_array_t;
-            signal w_sig     : inout data_array_t;
-            signal en_sig    : inout std_logic;
             constant a_matrix : in matrix_t;
             constant w_matrix : in matrix_t
         ) is
         begin
+            comp_en_i <= '1';
+            input_en_i <= '1';
 
             for cycle in 0 to NUM_PE-1 loop
-                a_sig <= mat_col_int_to_sign(a_matrix, cycle);
-                w_sig <= mat_row_int_to_sign(w_matrix, cycle);
-                en_sig <= '1';
+                a_in <= mat_col_int_to_sign(a_matrix, cycle);
+                w_in <= mat_row_int_to_sign(w_matrix, cycle);
 
                 wait until rising_edge(clk_i);
                 wait for 1 ns;
             end loop;
 
-            en_sig <= '0';
-            a_sig <= (others => (others => '0'));
-            w_sig <= (others => (others => '0'));
+            input_en_i <= '0';
+            a_in <= (others => (others => '0'));
+            w_in <= (others => (others => '0'));
 
             -- Wait for the final values to propagate through the array
             for k in 0 to 2 * NUM_PE loop
                 wait until rising_edge(clk_i);
                 wait for 1 ns;
             end loop;
+
+            comp_en_i <= '0';
         end procedure;
 
         ------------------------------------------------------------------------
@@ -291,9 +190,6 @@ begin
         -- Compute expected result, run DUT computation, then check
         ------------------------------------------------------------------------
         procedure apply_and_check(
-            signal a_sig       : inout data_array_t;
-            signal w_sig       : inout data_array_t;
-            signal en_sig      : inout std_logic;
             constant a_matrix : in matrix_t;
             constant w_matrix : in matrix_t;
             constant test_name : in string
@@ -302,11 +198,118 @@ begin
         begin
             expected_sums := matrix_mult(a_matrix, w_matrix);
 
-            full_compute(a_sig, w_sig, en_sig, a_matrix, w_matrix);
+            full_compute(a_matrix, w_matrix);
 
             check_outputs(expected_sums, test_name);
         end procedure;
 
+
+        ------------------------------------------------------------------------
+        -- Feed one full matrix multiplication, pausing computation and input midway
+        ------------------------------------------------------------------------
+        procedure full_compute_with_pause(
+            constant a_matrix : in matrix_t;
+            constant w_matrix : in matrix_t
+        ) is
+        begin
+            comp_en_i  <= '1';
+            input_en_i <= '1';
+
+            -- Feed first half
+            for cycle in 0 to 1 loop
+                a_in <= mat_col_int_to_sign(a_matrix, cycle);
+                w_in <= mat_row_int_to_sign(w_matrix, cycle);
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            --------------------------------------------------------------------
+            -- Pause input
+            --------------------------------------------------------------------
+            input_en_i <= '0';
+
+            -- Deliberately change inputs while paused.
+            -- They must not enter the array because input_en_i = '0'.
+            a_in <= (others => to_signed(42, DATA_WIDTH));
+            w_in <= (others => to_signed(-17, DATA_WIDTH));
+
+            for k in 0 to 2 loop
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            --------------------------------------------------------------------
+            -- Resume input
+            --------------------------------------------------------------------
+            input_en_i <= '1';
+
+            -- Continue from exactly where we stopped
+            for cycle in 2 to NUM_PE-1 loop
+                a_in <= mat_col_int_to_sign(a_matrix, cycle);
+                w_in <= mat_row_int_to_sign(w_matrix, cycle);
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            input_en_i <= '0';
+            a_in <= (others => (others => '0'));
+            w_in <= (others => (others => '0'));
+
+
+            -- Drain the array for NUM_PE cycles
+            for k in 0 to NUM_PE-1 loop
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            -- Deliberately change inputs while paused.
+            -- They must not enter the array because comp_en_i = '0'.
+            -- The computation should complete normally after
+            comp_en_i <= '0';
+            input_en_i <= '1';
+
+            a_in <= (others => to_signed(42, DATA_WIDTH));
+            w_in <= (others => to_signed(-17, DATA_WIDTH));
+
+            for k in 0 to 2 loop
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            comp_en_i <= '1';
+            input_en_i <= '0';
+            a_in <= (others => (others => '0'));
+            w_in <= (others => (others => '0'));
+
+            for k in NUM_PE to 2 * NUM_PE loop
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+            end loop;
+
+            comp_en_i <= '0';
+        end procedure;
+
+        ------------------------------------------------------------------------
+        -- Compute expected result, run DUT with a pause, then check
+        ------------------------------------------------------------------------
+        procedure apply_and_check_with_pause(
+            constant a_matrix : in matrix_t;
+            constant w_matrix : in matrix_t;
+            constant test_name : in string
+        ) is
+            variable expected_sums : matrix_t;
+        begin
+            expected_sums := matrix_mult(a_matrix, w_matrix);
+
+            full_compute_with_pause(a_matrix, w_matrix);
+
+            check_outputs(expected_sums, test_name);
+        end procedure;
+
+
+        -- Test matrixes
         constant I_MATRIX : matrix_t := (
             (1, 0, 0, 0),
             (0, 1, 0, 0),
@@ -373,19 +376,20 @@ begin
         -- Tests
         --------------------------------------------------------------------
 
-
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, A_TEST, I_MATRIX, "A times identity");
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, I_MATRIX, W_TEST, "identity times W");
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, A_TEST, ZERO_MATRIX, "A times zero");
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, ZERO_MATRIX, W_TEST, "zero times W");
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, A_TEST, W_TEST, "positive non-trivial multiplication");
-        clear_array(clear_i, input_en_i, a_in, w_in);
-        apply_and_check(a_in, w_in, input_en_i, A_SIGNED, W_SIGNED, "signed multiplication");
+        clear_array;
+        apply_and_check(A_TEST, I_MATRIX, "A times identity");
+        clear_array;
+        apply_and_check(I_MATRIX, W_TEST, "identity times W");
+        clear_array;
+        apply_and_check(A_TEST, ZERO_MATRIX, "A times zero");
+        clear_array;
+        apply_and_check(ZERO_MATRIX, W_TEST, "zero times W");
+        clear_array;
+        apply_and_check(A_TEST, W_TEST, "positive non-trivial multiplication");
+        clear_array;
+        apply_and_check(A_SIGNED, W_SIGNED, "signed multiplication");
+        clear_array;
+        apply_and_check_with_pause(A_SIGNED, W_SIGNED, "computation pause and resume");
 
         --------------------------------------------------------------------
         -- End simulation
