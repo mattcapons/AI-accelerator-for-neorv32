@@ -6,7 +6,10 @@ defaultlib.files = [
   "rtl/systolic_controller.vhd",
   "rtl/systolic_engine.vhd",
   "rtl/acc_mem_unit.vhd",
+  "rtl/input_buffer.vhd",
   "sim/tb_systolic_pe.vhd",
   "sim/tb_systolic_controller.vhd",
   "sim/tb_systolic_array.vhd",
+  "sim/tb_acc_mem_unit.vhd",
+  "sim/tb_input_buffer.vhd",
 ]

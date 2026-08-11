@@ -26,21 +26,13 @@ architecture Behavioral of acc_mem_unit is
     signal mem_reg : mem_t;
 
 begin
-
+    --WRITE
     process(clk_i, rst_i)
     begin
         if rst_i = '1' then
             mem_reg <= (others => (others => '0'));
-            data_o  <= (others => '0');
 
         elsif rising_edge(clk_i) then
-
-            assert read_addr_i >= 0 and read_addr_i < MEM_DEPTH
-                report "Read address out of range"
-                severity failure;
-
-
-
             if wr_en_i = '1' then
                 assert write_addr_i >= 0 and write_addr_i < MEM_DEPTH
                     report "Write address out of range"
@@ -48,10 +40,14 @@ begin
 
                 mem_reg(write_addr_i) <= data_i;
             end if;
-
-            data_o <= mem_reg(read_addr_i);
-
         end if;
     end process;
+
+    -- READ
+    assert read_addr_i >= 0 and read_addr_i < MEM_DEPTH
+        report "Read address out of range"
+        severity failure;
+
+    data_o <= mem_reg(read_addr_i);
 
 end architecture Behavioral;

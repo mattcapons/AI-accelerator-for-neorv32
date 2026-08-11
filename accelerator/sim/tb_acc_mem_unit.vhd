@@ -92,10 +92,12 @@ begin
             begin
                 read_addr_i <= addr;
 
-                wait until rising_edge(clk_i);
-                wait for 1 ns;
+                wait for 3 ns;
 
                 res := to_integer(signed(data_o));
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
             end procedure;
 
         begin
@@ -186,6 +188,21 @@ begin
             wait for 1 ns;
 
             assert to_integer(signed(data_o)) = 10
+                report "Error when reading while writing"
+                severity failure;
+
+            wait for 1 ns;
+
+            wr_en_i <= '0';
+
+            wait for 1 ns;
+
+            -- Test multiple reads in the same cycle
+            read_addr_i <= 1;
+
+            wait for 2 ns;
+
+            assert to_integer(signed(data_o)) = 5
                 report "Error when reading while writing"
                 severity failure;
 
