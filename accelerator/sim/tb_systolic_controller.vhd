@@ -10,311 +10,372 @@ end entity tb_systolic_controller;
 
 architecture sim of tb_systolic_controller is
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------------------
     -- DUT signals
-    ----------------------------------------------------------------
-    signal p_sums_i      : out_array_t := (others => (others => (others => '0')));
-    signal clk_i         : std_logic := '0';
-    signal rst_i         : std_logic := '0';
-    signal start_i       : std_logic := '0';
+    ------------------------------------------------------------------------
+    signal vld_i       : std_logic := '0';
+    signal rdy_i       : std_logic := '0';
+    signal clk_i       : std_logic := '0';
+    signal rst_i       : std_logic := '0';
 
-    signal p_sum_o       : signed(ACC_WIDTH-1 downto 0);
-    signal rdy_o         : std_logic;
-    signal feed_idx_o    : integer range 0 to NUM_PE-1;
-    signal clear_o       : std_logic;
-    signal done_o        : std_logic;
-    signal feed_valid_o  : std_logic;
-    signal p_sum_valid_o : std_logic;
+    signal rdy_o       : std_logic;
+    signal vld_o       : std_logic;
+    signal clear_o     : std_logic;
+    signal input_en_o  : std_logic;
+    signal comp_en_o   : std_logic;
 
-    constant CLK_PERIOD : time := 10 ns;
-
-    ----------------------------------------------------------------
-    -- Helper function
-    ----------------------------------------------------------------
-    function signed_acc(x : integer) return signed is
-    begin
-        return to_signed(x, ACC_WIDTH);
-    end function;
-
-    ----------------------------------------------------------------
-    -- Wait one clock and allow combinational outputs to settle
-    ----------------------------------------------------------------
-    procedure tick is
-    begin
-        wait until rising_edge(clk_i);
-        wait for 1 ns;
-    end procedure;
-
-    ----------------------------------------------------------------
-    -- Generic controller-output check
-    ----------------------------------------------------------------
-    procedure check_ctrl(
-        constant expected_rdy         : in std_logic;
-        constant expected_feed_valid  : in std_logic;
-        constant expected_feed_idx    : in integer;
-        constant expected_p_sum_valid : in std_logic;
-        constant expected_p_sum       : in integer;
-        constant expected_done        : in std_logic;
-        constant expected_clear       : in std_logic;
-        constant test_name            : in string
-    ) is
-        variable actual_p_sum : integer;
-    begin
-
-        assert rdy_o = expected_rdy
-            report "FAIL: " & test_name & " rdy_o wrong. Expected " &
-                   std_logic'image(expected_rdy) & ", got " &
-                   std_logic'image(rdy_o)
-            severity failure;
-
-        assert feed_valid_o = expected_feed_valid
-            report "FAIL: " & test_name & " feed_valid_o wrong. Expected " &
-                   std_logic'image(expected_feed_valid) & ", got " &
-                   std_logic'image(feed_valid_o)
-            severity failure;
-
-        assert feed_idx_o = expected_feed_idx
-            report "FAIL: " & test_name & " feed_idx_o wrong. Expected " &
-                   integer'image(expected_feed_idx) & ", got " &
-                   integer'image(feed_idx_o)
-            severity failure;
-
-        assert p_sum_valid_o = expected_p_sum_valid
-            report "FAIL: " & test_name & " p_sum_valid_o wrong. Expected " &
-                   std_logic'image(expected_p_sum_valid) & ", got " &
-                   std_logic'image(p_sum_valid_o)
-            severity failure;
-
-        if expected_p_sum_valid = '1' then
-            actual_p_sum := to_integer(p_sum_o);
-
-            assert actual_p_sum = expected_p_sum
-                report "FAIL: " & test_name & " p_sum_o wrong. Expected " &
-                       integer'image(expected_p_sum) & ", got " &
-                       integer'image(actual_p_sum)
-                severity failure;
-        end if;
-
-        assert done_o = expected_done
-            report "FAIL: " & test_name & " done_o wrong. Expected " &
-                   std_logic'image(expected_done) & ", got " &
-                   std_logic'image(done_o)
-            severity failure;
-
-        assert clear_o = expected_clear
-            report "FAIL: " & test_name & " clear_o wrong. Expected " &
-                   std_logic'image(expected_clear) & ", got " &
-                   std_logic'image(clear_o)
-            severity failure;
-
-    end procedure;
+    ------------------------------------------------------------------------
+    -- Constants
+    ------------------------------------------------------------------------
+    constant CLK_PERIOD   : time := 10 ns;
+    constant DRAIN_CYCLES : integer := (2 * NUM_PE) - 1;
 
 begin
 
-    ----------------------------------------------------------------
+    ------------------------------------------------------------------------
     -- DUT instantiation
-    ----------------------------------------------------------------
-    dut : entity work.systolic_controller
+    ------------------------------------------------------------------------
+    dut_inst : entity work.systolic_controller
         port map (
-            p_sums_i      => p_sums_i,
-            clk_i         => clk_i,
-            rst_i         => rst_i,
-            start_i       => start_i,
-            p_sum_o       => p_sum_o,
-            rdy_o         => rdy_o,
-            feed_idx_o    => feed_idx_o,
-            clear_o       => clear_o,
-            done_o        => done_o,
-            feed_valid_o  => feed_valid_o,
-            p_sum_valid_o => p_sum_valid_o
+            vld_i      => vld_i,
+            rdy_i      => rdy_i,
+            clk_i      => clk_i,
+            rst_i      => rst_i,
+            rdy_o      => rdy_o,
+            vld_o      => vld_o,
+            clear_o    => clear_o,
+            input_en_o => input_en_o,
+            comp_en_o  => comp_en_o
         );
 
-    ----------------------------------------------------------------
+
+    ------------------------------------------------------------------------
     -- Clock generation
-    ----------------------------------------------------------------
+    ------------------------------------------------------------------------
     clk_process : process
     begin
         while true loop
             clk_i <= '0';
             wait for CLK_PERIOD / 2;
+
             clk_i <= '1';
             wait for CLK_PERIOD / 2;
         end loop;
     end process;
 
-    ----------------------------------------------------------------
+
+    ------------------------------------------------------------------------
     -- Stimulus
-    ----------------------------------------------------------------
-    stimulus : process
-        variable expected_value : integer;
+    ------------------------------------------------------------------------
+    stim_process : process
+
+        --------------------------------------------------------------------
+        -- Send one input beat
+        --------------------------------------------------------------------
+        procedure send_input is
+        begin
+            assert rdy_o = '1'
+                report "Controller not ready for input"
+                severity failure;
+
+            vld_i <= '1';
+
+            wait for 1 ns;
+
+            assert input_en_o = '1'
+                report "input_en_o not asserted during input transfer"
+                severity failure;
+
+            assert comp_en_o = '1'
+                report "comp_en_o not asserted during input transfer"
+                severity failure;
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            vld_i <= '0';
+
+            wait for 1 ns;
+        end procedure;
+
+
+        --------------------------------------------------------------------
+        -- Verify drain period and arrival in OUTPUT
+        --------------------------------------------------------------------
+        procedure wait_for_output is
+        begin
+
+            -- We should have just entered DRAIN.
+            assert rdy_o = '0'
+                report "rdy_o still asserted during DRAIN"
+                severity failure;
+
+            assert comp_en_o = '1'
+                report "comp_en_o not asserted at start of DRAIN"
+                severity failure;
+
+            assert vld_o = '0'
+                report "vld_o asserted too early"
+                severity failure;
+
+
+            -- First DRAIN_CYCLES - 1 cycles must remain in DRAIN.
+            for i in 1 to DRAIN_CYCLES-1 loop
+
+                wait until rising_edge(clk_i);
+                wait for 1 ns;
+
+                assert rdy_o = '0'
+                    report "rdy_o asserted during DRAIN"
+                    severity failure;
+
+                assert comp_en_o = '1'
+                    report "comp_en_o dropped during DRAIN"
+                    severity failure;
+
+                assert input_en_o = '0'
+                    report "input_en_o asserted during DRAIN"
+                    severity failure;
+
+                assert vld_o = '0'
+                    report "OUTPUT reached too early"
+                    severity failure;
+
+                assert clear_o = '0'
+                    report "Array cleared during DRAIN"
+                    severity failure;
+
+            end loop;
+
+
+            -- Final drain cycle.
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            -- We must now be in OUTPUT.
+            assert vld_o = '1'
+                report "vld_o not asserted after drain completed"
+                severity failure;
+
+            assert rdy_o = '0'
+                report "rdy_o asserted during OUTPUT"
+                severity failure;
+
+            assert input_en_o = '0'
+                report "input_en_o asserted during OUTPUT"
+                severity failure;
+
+            assert comp_en_o = '0'
+                report "comp_en_o asserted during OUTPUT"
+                severity failure;
+
+        end procedure;
+
+
     begin
 
-        ----------------------------------------------------------------
-        -- Initialize fake systolic-array outputs.
-        --
-        -- p_sums_i(i,j) = 10*i + j
-        --
-        -- So row-major output should be:
-        -- 0, 1, 2, 3,
-        -- 10, 11, 12, 13,
-        -- 20, 21, 22, 23,
-        -- 30, 31, 32, 33
-        ----------------------------------------------------------------
-        for i in 0 to NUM_PE-1 loop
-            for j in 0 to NUM_PE-1 loop
-                p_sums_i(i, j) <= signed_acc(10*i + j);
-            end loop;
+        --------------------------------------------------------------------
+        -- RESET TEST
+        --------------------------------------------------------------------
+        rst_i <= '1';
+
+        wait for CLK_PERIOD;
+
+        rst_i <= '0';
+        wait for 1 ns;
+
+        assert rdy_o = '1'
+            report "Controller not ready after reset"
+            severity failure;
+
+        assert vld_o = '0'
+            report "vld_o asserted after reset"
+            severity failure;
+
+        assert clear_o = '0'
+            report "clear_o asserted after reset"
+            severity failure;
+
+        assert input_en_o = '0'
+            report "input_en_o asserted without valid input"
+            severity failure;
+
+        assert comp_en_o = '0'
+            report "comp_en_o asserted without valid input"
+            severity failure;
+
+
+        --------------------------------------------------------------------
+        -- TEST 1:
+        -- Normal four-word feed
+        --------------------------------------------------------------------
+
+        -- Input #1: accepted directly from IDLE.
+        send_input;
+
+        -- Input #2
+        send_input;
+
+        -- Input #3
+        send_input;
+
+        -- Input #4
+        send_input;
+
+
+        --------------------------------------------------------------------
+        -- TEST 2:
+        -- Exact drain timing
+        --------------------------------------------------------------------
+        wait_for_output;
+
+
+        --------------------------------------------------------------------
+        -- TEST 3:
+        -- Output backpressure
+        --------------------------------------------------------------------
+        rdy_i <= '0';
+
+        -- Stay stalled for several cycles.
+        for i in 0 to 2 loop
+
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
+
+            assert vld_o = '1'
+                report "vld_o dropped while output stalled"
+                severity failure;
+
+            assert clear_o = '0'
+                report "Array cleared while output was not ready"
+                severity failure;
+
+            assert comp_en_o = '0'
+                report "Array computation enabled while waiting for output"
+                severity failure;
+
         end loop;
 
-        ----------------------------------------------------------------
-        -- Reset
-        ----------------------------------------------------------------
-        rst_i   <= '1';
-        start_i <= '0';
 
-        wait for 2 * CLK_PERIOD;
+        --------------------------------------------------------------------
+        -- TEST 4:
+        -- Successful output handshake
+        --------------------------------------------------------------------
+        rdy_i <= '1';
+
+        wait for 1 ns;
+
+        assert vld_o = '1'
+            report "vld_o not asserted before output handshake"
+            severity failure;
+
+        assert clear_o = '1'
+            report "clear_o not asserted on output handshake"
+            severity failure;
+
+
         wait until rising_edge(clk_i);
         wait for 1 ns;
 
-        rst_i <= '0';
+        rdy_i <= '0';
 
-        tick;
 
-        check_ctrl(
-            expected_rdy         => '1',
-            expected_feed_valid  => '0',
-            expected_feed_idx    => 0,
-            expected_p_sum_valid => '0',
-            expected_p_sum       => 0,
-            expected_done        => '0',
-            expected_clear       => '0',
-            test_name            => "IDLE after reset"
-        );
+        -- Controller should now be back in IDLE.
+        assert rdy_o = '1'
+            report "Controller did not return to IDLE after output"
+            severity failure;
 
-        ----------------------------------------------------------------
-        -- Start pulse.
-        -- After this clock, FSM is in FEED with cycle_count = 0.
-        ----------------------------------------------------------------
-        start_i <= '1';
-        tick;
-        start_i <= '0';
+        assert vld_o = '0'
+            report "vld_o remained asserted after output handshake"
+            severity failure;
 
-        check_ctrl(
-            expected_rdy         => '0',
-            expected_feed_valid  => '0',
-            expected_feed_idx    => 0,
-            expected_p_sum_valid => '0',
-            expected_p_sum       => 0,
-            expected_done        => '0',
-            expected_clear       => '0',
-            test_name            => "FEED dummy cycle"
-        );
+        assert clear_o = '0'
+            report "clear_o remained asserted after output handshake"
+            severity failure;
 
-        ----------------------------------------------------------------
-        -- FEED cycles.
-        --
-        -- This matches your current controller code:
-        --
-        -- cycle_count = 1 -> feed_idx_o = 1
-        -- cycle_count = 2 -> feed_idx_o = 2
-        -- cycle_count = 3 -> feed_idx_o = 3
-        -- cycle_count = 4 -> feed_idx_o = 0
-        --
-        -- If you later change feed_idx_o to cycle_count - 1, then these
-        -- expected values must become 0, 1, 2, 3.
-        ----------------------------------------------------------------
-        tick;
-        check_ctrl('0', '1', 1, '0', 0, '0', '0', "FEED cycle 1");
 
-        tick;
-        check_ctrl('0', '1', 2, '0', 0, '0', '0', "FEED cycle 2");
+        --------------------------------------------------------------------
+        -- TEST 5:
+        -- Stall input halfway through FEED
+        --------------------------------------------------------------------
 
-        tick;
-        check_ctrl('0', '1', 3, '0', 0, '0', '0', "FEED cycle 3");
+        -- Input #1
+        send_input;
 
-        tick;
-        check_ctrl('0', '1', 0, '0', 0, '0', '0', "FEED cycle 4");
+        -- Input #2
+        send_input;
 
-        ----------------------------------------------------------------
-        -- DRAIN cycle
-        ----------------------------------------------------------------
-        tick;
-        check_ctrl(
-            expected_rdy         => '0',
-            expected_feed_valid  => '0',
-            expected_feed_idx    => 0,
-            expected_p_sum_valid => '0',
-            expected_p_sum       => 0,
-            expected_done        => '0',
-            expected_clear       => '0',
-            test_name            => "DRAIN"
-        );
 
-        ----------------------------------------------------------------
-        -- OUTPUT cycles.
-        -- Controller should serialize p_sums_i row-major.
-        ----------------------------------------------------------------
-        for i in 0 to NUM_PE-1 loop
-            for j in 0 to NUM_PE-1 loop
+        -- Producer stalls.
+        vld_i <= '0';
 
-                tick;
+        for i in 0 to 2 loop
 
-                expected_value := 10*i + j;
+            wait until rising_edge(clk_i);
+            wait for 1 ns;
 
-                check_ctrl(
-                    expected_rdy         => '0',
-                    expected_feed_valid  => '0',
-                    expected_feed_idx    => 0,
-                    expected_p_sum_valid => '1',
-                    expected_p_sum       => expected_value,
-                    expected_done        => '0',
-                    expected_clear       => '0',
-                    test_name            => "OUTPUT (" &
-                                            integer'image(i) & "," &
-                                            integer'image(j) & ")"
-                );
+            assert rdy_o = '1'
+                report "Controller stopped being ready during input stall"
+                severity failure;
 
-            end loop;
+            assert input_en_o = '0'
+                report "input_en_o asserted while vld_i = 0"
+                severity failure;
+
+            assert comp_en_o = '0'
+                report "comp_en_o asserted while input stalled"
+                severity failure;
+
+            assert vld_o = '0'
+                report "Controller advanced to OUTPUT during input stall"
+                severity failure;
+
         end loop;
 
-        ----------------------------------------------------------------
-        -- DONE
-        ----------------------------------------------------------------
-        tick;
 
-        check_ctrl(
-            expected_rdy         => '0',
-            expected_feed_valid  => '0',
-            expected_feed_idx    => 0,
-            expected_p_sum_valid => '0',
-            expected_p_sum       => 0,
-            expected_done        => '1',
-            expected_clear       => '1',
-            test_name            => "DONE"
-        );
+        -- Resume with input #3.
+        send_input;
 
-        ----------------------------------------------------------------
-        -- Back to IDLE
-        ----------------------------------------------------------------
-        tick;
+        -- Input #4.
+        send_input;
 
-        check_ctrl(
-            expected_rdy         => '1',
-            expected_feed_valid  => '0',
-            expected_feed_idx    => 0,
-            expected_p_sum_valid => '0',
-            expected_p_sum       => 0,
-            expected_done        => '0',
-            expected_clear       => '0',
-            test_name            => "IDLE after DONE"
-        );
 
-        ----------------------------------------------------------------
-        -- End simulation
-        ----------------------------------------------------------------
-        report "TEST PASSED: systolic_controller behaves correctly" severity note;
+        --------------------------------------------------------------------
+        -- Must still perform the complete drain period.
+        --------------------------------------------------------------------
+        wait_for_output;
+
+
+        --------------------------------------------------------------------
+        -- Finish second operation immediately.
+        --------------------------------------------------------------------
+        rdy_i <= '1';
+
+        wait for 1 ns;
+
+        assert clear_o = '1'
+            report "clear_o not asserted during second output handshake"
+            severity failure;
+
+        wait until rising_edge(clk_i);
+        wait for 1 ns;
+
+        rdy_i <= '0';
+
+
+        assert rdy_o = '1'
+            report "Controller did not return to IDLE after second operation"
+            severity failure;
+
+
+        --------------------------------------------------------------------
+        -- TEST PASSED
+        --------------------------------------------------------------------
+        assert false
+            report "TEST PASSED: systolic_controller behaves correctly"
+            severity note;
+
         stop;
-        wait;
 
     end process;
 

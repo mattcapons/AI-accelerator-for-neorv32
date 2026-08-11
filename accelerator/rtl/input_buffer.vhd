@@ -103,7 +103,7 @@ begin
                         a_wr_addr <= (bl_wr_count) * NUM_PE;
                         w_wr_addr <= (bl_wr_count) * NUM_PE;
 
-                        if block_state(bl_wr_count) = EMPTY then
+                        if en_i = '1' and block_state(bl_wr_count) = EMPTY then
                             wr_state <= WRITE_A;
                         end if;
 
