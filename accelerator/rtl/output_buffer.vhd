@@ -14,6 +14,7 @@ entity output_buffer is
         rst_i           : in std_logic;
         rdy_o           : out std_logic;
         vld_o           : out std_logic;
+        tx_done_o       : out std_logic;
         data_o          : out std_logic_vector(NUM_PE*DATA_WIDTH-1 downto 0)
     );
 end entity output_buffer;
@@ -113,6 +114,7 @@ begin
             wr_addr           <= 0;
             available_count   <= (others => 0);
             tx_count          <= 0;
+            tx_done_o         <= '0';
 
         elsif rising_edge(clk_i) then
 
@@ -174,6 +176,8 @@ begin
 
             end case;
 
+            -- Resent done signal<
+            tx_done_o <= '0';
 
             -- Advance the TX side only after a successful valid-ready transfer.
             if vld = '1' and rdy_i = '1' then
@@ -185,6 +189,7 @@ begin
                     tx_count <= 0;
                     block_state(bl_rd_count) <= EMPTY;
                     bl_rd_count <= 1 - bl_rd_count;
+                    tx_done_o <= '1';
                 end if;
 
             end if;
