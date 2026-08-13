@@ -1,3 +1,4 @@
 [submodule "neorv32-setups"]
 	path = neorv32-setups
 	url = https://github.com/mattcapons/neorv32-setups.git
+    branch = dhwa-project
