@@ -27,3 +27,6 @@ accelerator/build/
 
 # OS/editor
 .DS_Store
+
+#xPack
+xpacks/
