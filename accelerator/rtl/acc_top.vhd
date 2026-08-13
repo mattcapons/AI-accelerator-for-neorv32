@@ -9,7 +9,7 @@ entity acc_top is
         start_i     : in std_logic;
         clk_i       : in std_logic;
         rstn_i      : in std_logic;
-        acc_num_i   : in integer range 1 to MAX_TILE_SIZE;
+        acc_num_i   : in std_logic_vector(31 downto 0);
         tx_vld_i    : in std_logic;
         rx_rdy_i    : in std_logic;
         tx_data_i   : in std_logic_vector(31 downto 0);
@@ -39,6 +39,8 @@ architecture behavioural of acc_top is
     signal arr_to_out_vld : std_logic;
     signal arr_to_out_rdy : std_logic;
     signal arr_to_out_data : out_array_t;
+
+    signal acc_num : integer range 1 to MAX_TILE_SIZE;
 
 begin
 
@@ -74,7 +76,7 @@ begin
     output_buffer_inst : entity work.output_buffer
         port map(
             data_i          => arr_to_out_data,
-            acc_num_i       => acc_num_i,
+            acc_num_i       => acc_num,
             vld_i           => arr_to_out_vld,
             rdy_i           => rx_rdy_i,
             clk_i           => clk_i,
@@ -104,7 +106,7 @@ begin
 
                 when COMPUTE =>
                     if tx_done = '1' then
-                        if tx_count < acc_num_i*acc_num_i-1 then
+                        if tx_count < acc_num*acc_num-1 then
                             tx_count := tx_count + 1;
                         else
                             tx_count := 0;
@@ -132,6 +134,17 @@ begin
         end case;
 
     end process comb_proc;
+
+    acc_num_conv: process(all)
+    begin
+        if (unsigned(acc_num_i) >= to_unsigned(1, 32)) and
+           (unsigned(acc_num_i) <= to_unsigned(MAX_TILE_SIZE, 32)) then
+
+            acc_num <= to_integer(unsigned(acc_num_i));
+        else
+            acc_num <= 1;
+        end if;
+    end process;
 
 
     rst <= not rstn_i;
